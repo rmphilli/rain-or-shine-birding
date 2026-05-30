@@ -52,13 +52,21 @@ exports.handler = async (event) => {
 
     const data = await response.json();
     if (!response.ok) {
-      return json(response.status, { error: data.error?.message || "OpenAI request failed." });
+      console.error("OpenAI request failed", {
+        status: response.status,
+        error: data.error?.message || data,
+      });
+      return json(response.status, {
+        error: data.error?.message || "OpenAI request failed.",
+        status: response.status,
+      });
     }
 
     return json(200, {
       reply: data.output_text || collectOutputText(data) || "I could not find a text response.",
     });
   } catch (error) {
+    console.error("Assistant function crashed", error);
     return json(500, { error: error.message || "Assistant request failed." });
   }
 };
