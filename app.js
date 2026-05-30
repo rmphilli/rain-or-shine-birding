@@ -21,6 +21,7 @@ const memberFilter = document.querySelector("#memberFilter");
 const speciesSearch = document.querySelector("#speciesSearch");
 const memberBreakdown = document.querySelector("#memberBreakdown");
 const profileTrophyCase = document.querySelector("#profileTrophyCase");
+const birderTypeBadges = document.querySelector("#birderTypeBadges");
 const chatMessages = document.querySelector("#chatMessages");
 const chatForm = document.querySelector("#chatForm");
 const chatInput = document.querySelector("#chatInput");
@@ -200,6 +201,7 @@ function render() {
   renderMemberFilter();
   renderStats();
   renderMemberBreakdown();
+  renderBirderTypeBadges();
   renderProfileTrophyCase();
   renderSpeciesTable();
   renderMap();
@@ -292,6 +294,84 @@ function renderWhimsyWatch() {
   whimsyTitle.textContent = dispatch.title;
   whimsyText.textContent = dispatch.text;
   whimsyMeta.textContent = dispatch.meta;
+}
+
+function renderBirderTypeBadges() {
+  const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
+  birderTypeBadges.innerHTML = "";
+
+  members.forEach((member) => {
+    const profile = calculateBirderType(member);
+    const card = document.createElement("article");
+    card.className = "type-badge";
+    card.innerHTML = `
+      <div class="type-badge__seal" aria-hidden="true">
+        <div class="type-badge__inner">
+          <span class="type-badge__logo">RS</span>
+          <span class="type-badge__name">${escapeHtml(member)}</span>
+          <span class="type-badge__type">${escapeHtml(profile.type)}</span>
+        </div>
+      </div>
+      <h3>${escapeHtml(profile.type)}</h3>
+      <p>${escapeHtml(profile.reason)}</p>
+    `;
+    birderTypeBadges.appendChild(card);
+  });
+}
+
+function calculateBirderType(member) {
+  const memberObservations = observations.filter((obs) => obs.member === member);
+  const uniqueSpecies = getUniqueLifeListSpecies(member);
+  if (!memberObservations.length) {
+    return {
+      type: "Whimsy Scout",
+      reason: "Waiting for a first upload before the badge committee makes its ruling.",
+    };
+  }
+
+  const mapped = memberObservations.filter((obs) => obs.latitude !== null && obs.longitude !== null);
+  const places = new Set(mapped.map((obs) => obs.location || `${obs.latitude.toFixed(2)},${obs.longitude.toFixed(2)}`));
+  const recentDates = memberObservations.map((obs) => obs.date).filter(Boolean).sort();
+  const latestDate = recentDates[recentDates.length - 1] || "";
+  const hasRaptor = memberObservations.some((obs) => /hawk|eagle|falcon|kite|osprey|owl|vulture|harrier/i.test(obs.species));
+  const hasWaterBird = memberObservations.some((obs) => /duck|goose|swan|heron|egret|rail|gull|tern|sandpiper|plover|pelican|cormorant|loon|grebe/i.test(obs.species));
+  const hasWarbler = memberObservations.some((obs) => /warbler|vireo|kinglet|gnatcatcher/i.test(obs.species));
+  const speciesRatio = uniqueSpecies.length / Math.max(memberObservations.length, 1);
+
+  if (hasWarbler && uniqueSpecies.length >= 75) {
+    return {
+      type: "Warbler Whisperer",
+      reason: `${member} is stacking delicate little leaf-movers into a serious life list.`,
+    };
+  }
+  if (hasRaptor) {
+    return {
+      type: "Sky Scanner",
+      reason: `${member} has enough big-sky energy in the list to earn a permanent upward glance.`,
+    };
+  }
+  if (hasWaterBird || places.size >= 8) {
+    return {
+      type: "Marsh Wanderer",
+      reason: `${member} keeps turning shorelines, wetlands, and watery edges into bird evidence.`,
+    };
+  }
+  if (speciesRatio > 0.72 && uniqueSpecies.length >= 25) {
+    return {
+      type: "Life List Alchemist",
+      reason: `${member} turns ordinary outings into fresh species at an impressive clip.`,
+    };
+  }
+  if (latestDate) {
+    return {
+      type: "Rain or Shine Regular",
+      reason: `${member}'s latest logged birding pulse was ${formatDate(latestDate)}, and the streak has a sturdy field-boot feel.`,
+    };
+  }
+  return {
+    type: "Field Note Keeper",
+    reason: `${member} has the observations rolling in; the badge will sharpen as more dates and places appear.`,
+  };
 }
 
 function renderProfileTrophyCase() {

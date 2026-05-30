@@ -549,6 +549,82 @@ textarea {
   gap: 16px;
 }
 
+.type-badge-grid {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.type-badge {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(255, 253, 248, 0.94), rgba(238, 244, 238, 0.9)),
+    var(--mist);
+  border: 1px solid rgba(80, 111, 85, 0.16);
+  padding: 12px;
+  text-align: left;
+}
+
+.type-badge__seal {
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 86px;
+  border: 5px solid #fffdf5;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255, 253, 245, 0.58), transparent 23%),
+    conic-gradient(from 28deg, #f3c95d, #8fb8c9, #9eb89f, #c75b57, #f3c95d);
+  box-shadow:
+    inset -7px -9px 0 rgba(34, 49, 45, 0.12),
+    0 10px 22px rgba(27, 43, 39, 0.16);
+}
+
+.type-badge__inner {
+  display: grid;
+  place-items: center;
+  gap: 2px;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: var(--ink);
+  color: #fffdf5;
+  padding: 7px;
+  box-shadow: inset -5px -6px 0 rgba(255, 255, 255, 0.08);
+}
+
+.type-badge__logo {
+  color: var(--sun);
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.type-badge__name {
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.type-badge__type {
+  display: none;
+}
+
+.type-badge h3 {
+  margin: 0 0 5px;
+  font-size: 1rem;
+}
+
+.type-badge p {
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
 .profile-card {
   display: grid;
   gap: 16px;
@@ -742,5 +818,19 @@ th {
 
   .message-row {
     grid-template-columns: 1fr;
+  }
+
+  .type-badge {
+    grid-template-columns: 76px minmax(0, 1fr);
+  }
+
+  .type-badge__seal {
+    width: 72px;
+    height: 72px;
+  }
+
+  .type-badge__inner {
+    width: 52px;
+    height: 52px;
   }
 }
