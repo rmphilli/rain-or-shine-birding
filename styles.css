@@ -69,6 +69,13 @@ select {
   gap: 16px;
 }
 
+.welcome-message {
+  margin: 0;
+  color: var(--moss);
+  font-weight: 800;
+  text-align: center;
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
