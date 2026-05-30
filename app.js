@@ -1,0 +1,1041 @@
+const STORAGE_KEY = "rainOrShineBirdingData";
+const BADGE_STORAGE_KEY = "rainOrShineMilestoneBadges";
+const SESSION_STORAGE_KEY = "rainOrShineSupabaseSession";
+const defaultMembers = ["Jeff", "Alex", "Matt"];
+
+let observations = loadObservations();
+let userMilestoneBadges = loadMilestoneBadgeStore();
+let appConfig = { supabaseUrl: "", supabaseAnonKey: "" };
+let authSession = loadAuthSession();
+let isRemoteReady = false;
+
+const fileInputs = document.querySelectorAll(".file-input");
+const speciesTable = document.querySelector("#speciesTable");
+const tableEmpty = document.querySelector("#tableEmpty");
+const mapEmpty = document.querySelector("#mapEmpty");
+const canvas = document.querySelector("#heatMap");
+const memberFilter = document.querySelector("#memberFilter");
+const speciesSearch = document.querySelector("#speciesSearch");
+const memberBreakdown = document.querySelector("#memberBreakdown");
+const profileTrophyCase = document.querySelector("#profileTrophyCase");
+const chatMessages = document.querySelector("#chatMessages");
+const chatForm = document.querySelector("#chatForm");
+const chatInput = document.querySelector("#chatInput");
+const assistantStatus = document.querySelector("#assistantStatus");
+const birdImageInput = document.querySelector("#birdImageInput");
+const imagePreview = document.querySelector("#imagePreview");
+const authForm = document.querySelector("#authForm");
+const authEmail = document.querySelector("#authEmail");
+const authStatus = document.querySelector("#authStatus");
+const signOutButton = document.querySelector("#signOutButton");
+const syncStatus = document.querySelector("#syncStatus");
+
+let attachedBirdImage = null;
+
+const aliases = {
+  species: ["commonname", "common name", "species", "englishname", "english name"],
+  scientific: ["scientificname", "scientific name", "latinname", "latin name"],
+  date: ["date", "observationdate", "observation date", "obsdate"],
+  count: ["count", "number", "howmany"],
+  latitude: ["latitude", "lat", "decimal latitude"],
+  longitude: ["longitude", "lng", "lon", "decimal longitude"],
+  location: ["location", "locality", "locationname", "location name", "hotspot", "site"],
+  checklist: ["submissionid", "submission id", "checklistid", "checklist id", "samplingeventidentifier"],
+};
+
+fileInputs.forEach((input) => {
+  input.addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const text = await file.text();
+    const rows = parseCsv(text);
+    const member = event.target.dataset.member;
+    const imported = normalizeRows(rows, member, file.name);
+
+    observations = observations.filter((item) => item.member !== member).concat(imported);
+    await saveImport(member, file.name, imported);
+    event.target.closest(".upload-card").querySelector(".upload-card__hint").textContent = `${imported.length} rows`;
+    render();
+  });
+});
+
+document.querySelector("#resetData").addEventListener("click", async () => {
+  observations = [];
+  userMilestoneBadges = [];
+  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(BADGE_STORAGE_KEY);
+  if (isRemoteReady) {
+    await remoteDelete("user_milestone_badges");
+    await remoteDelete("observations");
+    await remoteDelete("imports");
+  }
+  fileInputs.forEach((input) => {
+    input.value = "";
+    input.closest(".upload-card").querySelector(".upload-card__hint").textContent = "Choose CSV";
+  });
+  render();
+});
+
+memberFilter.addEventListener("change", renderMap);
+speciesSearch.addEventListener("input", renderSpeciesTable);
+window.addEventListener("resize", renderMap);
+setupChatAssistant();
+setupAuth();
+initRemoteData();
+
+render();
+
+function parseCsv(text) {
+  const rows = [];
+  let row = [];
+  let value = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"' && inQuotes && next === '"') {
+      value += '"';
+      i += 1;
+    } else if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === "," && !inQuotes) {
+      row.push(value);
+      value = "";
+    } else if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") i += 1;
+      row.push(value);
+      if (row.some((cell) => cell.trim())) rows.push(row);
+      row = [];
+      value = "";
+    } else {
+      value += char;
+    }
+  }
+
+  row.push(value);
+  if (row.some((cell) => cell.trim())) rows.push(row);
+  if (rows.length < 2) return [];
+
+  const headers = rows[0].map((header) => header.trim());
+  return rows.slice(1).map((cells) => {
+    const entry = {};
+    headers.forEach((header, index) => {
+      entry[header] = (cells[index] || "").trim();
+    });
+    return entry;
+  });
+}
+
+function normalizeRows(rows, member, sourceName) {
+  return rows
+    .map((row, index) => {
+      const species = pick(row, aliases.species);
+      if (!species) return null;
+
+      return {
+        id: `${member}-${sourceName}-${index}-${species}`,
+        member,
+        species: titleCase(species),
+        scientific: pick(row, aliases.scientific),
+        date: cleanDate(pick(row, aliases.date)),
+        count: pick(row, aliases.count) || "",
+        latitude: parseNumber(pick(row, aliases.latitude)),
+        longitude: parseNumber(pick(row, aliases.longitude)),
+        location: pick(row, aliases.location) || "Unlisted place",
+        checklist: pick(row, aliases.checklist),
+        sourceName,
+      };
+    })
+    .filter(Boolean);
+}
+
+function pick(row, candidates) {
+  const entries = Object.entries(row);
+  for (const candidate of candidates) {
+    const normalizedCandidate = normalizeKey(candidate);
+    const match = entries.find(([key]) => normalizeKey(key) === normalizedCandidate);
+    if (match && match[1]) return match[1];
+  }
+  return "";
+}
+
+function normalizeKey(value) {
+  return String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function parseNumber(value) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function cleanDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toISOString().slice(0, 10);
+}
+
+function titleCase(value) {
+  return value
+    .toLowerCase()
+    .split(" ")
+    .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : part))
+    .join(" ");
+}
+
+function render() {
+  renderMemberFilter();
+  renderStats();
+  renderMemberBreakdown();
+  renderProfileTrophyCase();
+  renderSpeciesTable();
+  renderMap();
+}
+
+function speciesGroups() {
+  const groups = new Map();
+  observations.forEach((obs) => {
+    if (!groups.has(obs.species)) {
+      groups.set(obs.species, {
+        species: obs.species,
+        members: new Set(),
+        dates: [],
+        locations: new Set(),
+      });
+    }
+    const group = groups.get(obs.species);
+    group.members.add(obs.member);
+    if (obs.date) group.dates.push(obs.date);
+    if (obs.location) group.locations.add(obs.location);
+  });
+
+  return [...groups.values()].sort((a, b) => a.species.localeCompare(b.species));
+}
+
+function renderStats() {
+  const groups = speciesGroups();
+  const mapped = observations.filter((obs) => obs.latitude !== null && obs.longitude !== null);
+  const places = new Set(mapped.map((obs) => `${obs.latitude.toFixed(3)},${obs.longitude.toFixed(3)}`));
+
+  document.querySelector("#speciesCount").textContent = groups.length;
+  document.querySelector("#observationCount").textContent = observations.length;
+  document.querySelector("#locationCount").textContent = places.size;
+  document.querySelector("#sharedCount").textContent = groups.filter((group) => group.members.size === 3).length;
+}
+
+function renderMemberFilter() {
+  const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
+  const current = memberFilter.value;
+  memberFilter.innerHTML = '<option value="all">Everyone</option>';
+  members.forEach((member) => {
+    const option = document.createElement("option");
+    option.value = member;
+    option.textContent = member;
+    memberFilter.appendChild(option);
+  });
+  memberFilter.value = members.includes(current) ? current : "all";
+}
+
+function renderMemberBreakdown() {
+  const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
+  memberBreakdown.innerHTML = "";
+
+  members.forEach((member) => {
+    const memberObservations = observations.filter((obs) => obs.member === member);
+    const memberSpecies = new Set(memberObservations.map((obs) => obs.species));
+    const mapped = memberObservations.filter((obs) => obs.latitude !== null && obs.longitude !== null).length;
+    const card = document.createElement("article");
+    card.className = "member-card";
+    card.innerHTML = `<strong>${member}</strong><span>${memberSpecies.size} species | ${memberObservations.length} observations | ${mapped} mapped</span>`;
+    memberBreakdown.appendChild(card);
+  });
+}
+
+function renderProfileTrophyCase() {
+  const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
+  profileTrophyCase.innerHTML = "";
+
+  members.forEach((member) => {
+    const userId = getUserId(member);
+    const earnedBadges = calculateMilestoneBirdBadges(userId);
+    const memberSpecies = getUniqueLifeListSpecies(member);
+    const card = document.createElement("article");
+    card.className = "profile-card";
+
+    const badgesMarkup = earnedBadges.length
+      ? earnedBadges
+          .map((badge) => {
+            const isGeneral = badge.badge_kind === "general";
+            const iconText = isGeneral ? badge.milestone_number : badge.species_common_name.slice(0, 1);
+            const scientificName = badge.species_scientific_name
+              ? `<p class="badge-card__scientific">${escapeHtml(badge.species_scientific_name)}</p>`
+              : "";
+            return `
+              <article class="badge-card ${isGeneral ? "badge-card--general" : ""}">
+                <span class="badge-icon" aria-hidden="true">${escapeHtml(iconText)}</span>
+                <div>
+                  <strong>${escapeHtml(badge.badge_title)}</strong>
+                  ${scientificName}
+                  <p>${escapeHtml(badge.badge_description)}</p>
+                </div>
+              </article>
+            `;
+          })
+          .join("")
+      : '<p class="empty-state">Upload a life list to start earning milestone bird badges.</p>';
+
+    card.innerHTML = `
+      <div class="profile-card__top">
+        <div>
+          <h3 class="profile-card__name">${escapeHtml(member)}</h3>
+          <p class="profile-card__meta">User ID: ${escapeHtml(userId)}</p>
+        </div>
+        <span class="profile-card__count">${memberSpecies.length}</span>
+      </div>
+      <div class="badge-grid">${badgesMarkup}</div>
+    `;
+    profileTrophyCase.appendChild(card);
+  });
+
+  saveMilestoneBadgeStore();
+  syncMilestoneBadges();
+}
+
+function setupChatAssistant() {
+  const endpoint = getChatEndpoint();
+  assistantStatus.textContent = endpoint ? "Connected" : "Demo mode";
+
+  addChatMessage(
+    "assistant",
+    endpoint
+      ? "I am connected and ready for bird ID help, trip planning, and general birding chat."
+      : "Demo mode is ready. I can format bird ID questions, field-mark checklists, and trip ideas here. To make this a live ChatGPT chat, connect a small secure backend endpoint."
+  );
+
+  document.querySelectorAll(".quick-prompts button").forEach((button) => {
+    button.addEventListener("click", () => {
+      chatInput.value = button.dataset.prompt;
+      chatInput.focus();
+    });
+  });
+
+  birdImageInput.addEventListener("change", async (event) => {
+    const file = event.target.files[0];
+    if (!file) {
+      attachedBirdImage = null;
+      imagePreview.hidden = true;
+      imagePreview.textContent = "";
+      return;
+    }
+
+    attachedBirdImage = {
+      name: file.name,
+      type: file.type,
+      dataUrl: await readFileAsDataUrl(file),
+    };
+    imagePreview.hidden = false;
+    imagePreview.textContent = `Attached: ${file.name}`;
+  });
+
+  chatForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const message = chatInput.value.trim();
+    if (!message && !attachedBirdImage) return;
+
+    const userMessage = attachedBirdImage ? `${message || "Please help ID this bird."} [Photo attached: ${attachedBirdImage.name}]` : message;
+    addChatMessage("user", userMessage);
+    chatInput.value = "";
+
+    const imageForRequest = attachedBirdImage;
+    attachedBirdImage = null;
+    birdImageInput.value = "";
+    imagePreview.hidden = true;
+    imagePreview.textContent = "";
+
+    const reply = await getAssistantReply(message, imageForRequest);
+    addChatMessage("assistant", reply);
+  });
+}
+
+function setupAuth() {
+  applyAuthHash();
+  updateAuthStatus();
+
+  authForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = authEmail.value.trim();
+    if (!email) return;
+    if (!hasSupabaseConfig()) {
+      authStatus.textContent = "Supabase is not configured yet. Add the Netlify environment variables, then redeploy.";
+      return;
+    }
+
+    try {
+      await supabaseAuthRequest("/otp", {
+        email,
+        create_user: false,
+        options: {
+          emailRedirectTo: location.origin + location.pathname,
+        },
+      });
+      authStatus.textContent = "Magic link sent. Open it on this device to sync the team data.";
+    } catch (error) {
+      authStatus.textContent = `Sign-in failed: ${error.message}`;
+    }
+  });
+
+  signOutButton.addEventListener("click", () => {
+    authSession = null;
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    isRemoteReady = false;
+    updateAuthStatus();
+    updateSyncStatus();
+  });
+}
+
+async function initRemoteData() {
+  await loadRemoteConfig();
+  applyAuthHash();
+  updateAuthStatus();
+  updateSyncStatus();
+
+  if (!isRemoteReady) return;
+
+  try {
+    observations = (await remoteSelect("observations")).map(fromRemoteObservation);
+    userMilestoneBadges = (await remoteSelect("user_milestone_badges")).map(fromRemoteBadge);
+    saveObservations();
+    saveMilestoneBadgeStore();
+    render();
+    syncStatus.textContent = `Synced shared team data from Supabase. ${observations.length} observations loaded.`;
+  } catch (error) {
+    syncStatus.textContent = `Could not load shared data, so local preview data is still showing. ${error.message}`;
+  }
+}
+
+async function loadRemoteConfig() {
+  const endpoint = window.RSB_CONFIG_ENDPOINT || "";
+  if (!endpoint) {
+    updateSyncStatus();
+    return;
+  }
+
+  try {
+    const response = await fetch(endpoint);
+    if (!response.ok) throw new Error("Config function did not respond.");
+    const config = await response.json();
+    appConfig = {
+      supabaseUrl: config.supabaseUrl || "",
+      supabaseAnonKey: config.supabaseAnonKey || "",
+    };
+  } catch (error) {
+    syncStatus.textContent = `Config not loaded yet. ${error.message}`;
+  }
+
+  isRemoteReady = hasSupabaseConfig() && Boolean(authSession?.access_token);
+}
+
+function applyAuthHash() {
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
+  const accessToken = hash.get("access_token");
+  const refreshToken = hash.get("refresh_token");
+  const expiresIn = Number(hash.get("expires_in") || 3600);
+
+  if (accessToken) {
+    authSession = {
+      access_token: accessToken,
+      refresh_token: refreshToken || "",
+      expires_at: Date.now() + expiresIn * 1000,
+    };
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(authSession));
+    history.replaceState(null, "", location.pathname);
+  }
+}
+
+function updateAuthStatus() {
+  const configured = hasSupabaseConfig();
+  signOutButton.hidden = !authSession;
+
+  if (!configured) {
+    authStatus.textContent = "Connect Supabase to enable shared team data.";
+  } else if (authSession) {
+    authStatus.textContent = "Signed in. Uploads and milestone badges will sync to the team database.";
+  } else {
+    authStatus.textContent = "Supabase is connected. Sign in with a team email to sync shared data.";
+  }
+}
+
+function updateSyncStatus() {
+  if (!hasSupabaseConfig()) {
+    syncStatus.textContent = "Local preview mode";
+  } else if (!authSession) {
+    syncStatus.textContent = "Shared database connected. Sign in to sync.";
+  } else {
+    syncStatus.textContent = "Shared database connected.";
+  }
+}
+
+async function getAssistantReply(message, image) {
+  const endpoint = getChatEndpoint();
+  if (endpoint) {
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message,
+          image,
+          context: {
+            team: "Rain or Shine Birding Team",
+            members: defaultMembers,
+            speciesCount: speciesGroups().length,
+          },
+        }),
+      });
+      if (!response.ok) throw new Error(`Assistant request failed: ${response.status}`);
+      const data = await response.json();
+      return data.reply || data.output_text || "I received the request, but no reply text came back.";
+    } catch (error) {
+      return `The live assistant endpoint did not respond, so I am falling back to demo mode. ${getDemoAssistantReply(message, image)}`;
+    }
+  }
+
+  return getDemoAssistantReply(message, image);
+}
+
+function getDemoAssistantReply(message, image) {
+  if (image) {
+    return "For a real bird photo ID, I would send the image to a secure ChatGPT vision endpoint. Add location, date, size, behavior, habitat, colors, wing bars, bill shape, and any call notes, then I can help narrow candidates and explain what field marks matter.";
+  }
+
+  const text = message.toLowerCase();
+  if (text.includes("compare") || text.includes("similar")) {
+    return "Good comparison prompt: ask for size, structure, bill shape, eye ring, wing bars, tail pattern, behavior, habitat, season, and range. For tricky pairs, I would also ask what Merlin suggested and what felt off in the field.";
+  }
+  if (text.includes("trip") || text.includes("walk") || text.includes("weekend")) {
+    return "Rain-or-shine plan: pick one wetland edge, one woodland trail, and one open field stop. Start near sunrise, log every checklist separately, and choose one target bird for each person so the outing has a little friendly quest energy.";
+  }
+  if (text.includes("id") || text.includes("identify") || text.includes("field mark")) {
+    return "For bird ID, send a photo when you have one and include location, date, habitat, size, colors, behavior, call, and whether it was alone or in a flock. I will give likely candidates, confidence, and what to check next.";
+  }
+  return "I can help with bird ID, field marks, eBird checklist wording, trip ideas, target species, and friendly Rain or Shine banter. The live ChatGPT connection just needs a small backend endpoint so your API key stays private.";
+}
+
+function addChatMessage(role, text) {
+  const message = document.createElement("article");
+  message.className = `chat-message chat-message--${role}`;
+  message.innerHTML = `<strong>${role === "assistant" ? "Assistant" : "You"}</strong><p>${escapeHtml(text)}</p>`;
+  chatMessages.appendChild(message);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function getChatEndpoint() {
+  return window.RSB_CHAT_ENDPOINT || "";
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener("load", () => resolve(reader.result));
+    reader.addEventListener("error", reject);
+    reader.readAsDataURL(file);
+  });
+}
+
+function calculateMilestoneBirdBadges(userId) {
+  const member = getMemberByUserId(userId);
+  if (!member) return [];
+
+  const lifeList = getUniqueLifeListSpecies(member);
+  const milestones = getMilestoneNumbers(lifeList.length);
+  const earned = [];
+
+  milestones.forEach((milestone) => {
+    const milestoneSpecies = lifeList[milestone - 1];
+    if (!milestoneSpecies) return;
+
+    const generalBadge = buildGeneralMilestoneBadge(userId, member, milestone, milestoneSpecies);
+    const speciesBadge = buildSpeciesMilestoneBadge(userId, member, milestone, milestoneSpecies);
+
+    earned.push(upsertMilestoneBadge(generalBadge));
+    earned.push(upsertMilestoneBadge(speciesBadge));
+  });
+
+  return earned.sort((a, b) => {
+    if (a.milestone_number !== b.milestone_number) return a.milestone_number - b.milestone_number;
+    return a.badge_kind.localeCompare(b.badge_kind);
+  });
+}
+
+function getUniqueLifeListSpecies(member) {
+  const firstBySpecies = new Map();
+  observations
+    .filter((obs) => obs.member === member)
+    .forEach((obs) => {
+      const speciesId = getSpeciesId(obs);
+      const current = firstBySpecies.get(speciesId);
+      if (!current || compareLifeListEntries(obs, current) < 0) {
+        firstBySpecies.set(speciesId, obs);
+      }
+    });
+
+  return [...firstBySpecies.values()].sort(compareLifeListEntries);
+}
+
+function compareLifeListEntries(a, b) {
+  const dateA = a.date || "9999-12-31";
+  const dateB = b.date || "9999-12-31";
+  if (dateA !== dateB) return dateA.localeCompare(dateB);
+  const speciesCompare = a.species.localeCompare(b.species);
+  if (speciesCompare !== 0) return speciesCompare;
+  return (a.location || "").localeCompare(b.location || "");
+}
+
+function getMilestoneNumbers(totalSpecies) {
+  const milestones = [];
+  if (totalSpecies >= 1) milestones.push(1);
+  for (let milestone = 50; milestone <= totalSpecies; milestone += 50) {
+    milestones.push(milestone);
+  }
+  return milestones;
+}
+
+function buildGeneralMilestoneBadge(userId, member, milestone, species) {
+  return {
+    id: `${userId}-general-${milestone}`,
+    badge_kind: "general",
+    user_id: userId,
+    member_name: member,
+    milestone_number: milestone,
+    species_id: null,
+    species_common_name: "",
+    species_scientific_name: "",
+    date_seen: species.date || "",
+    location_name: species.location || "",
+    badge_title: milestone === 1 ? "First Feather" : `${milestone} Birds`,
+    badge_description: `Awarded for reaching ${milestone} lifetime ${milestone === 1 ? "species" : "species"}.`,
+    badge_image_url: "placeholder://general-milestone-badge",
+  };
+}
+
+function buildSpeciesMilestoneBadge(userId, member, milestone, species) {
+  return {
+    id: `${userId}-species-${milestone}`,
+    badge_kind: "species",
+    user_id: userId,
+    member_name: member,
+    milestone_number: milestone,
+    species_id: getSpeciesId(species),
+    species_common_name: species.species,
+    species_scientific_name: species.scientific || "",
+    date_seen: species.date || "",
+    location_name: species.location || "",
+    badge_title: `${species.species} - ${ordinal(milestone)} Bird`,
+    badge_description: buildSpeciesBadgeDescription(member, milestone, species),
+    badge_image_url: "placeholder://species-milestone-badge",
+  };
+}
+
+function buildSpeciesBadgeDescription(member, milestone, species) {
+  const details = [];
+  if (species.date) details.push(`seen on ${formatDate(species.date)}`);
+  if (species.location) details.push(`at ${species.location}`);
+  const sightingSentence = details.length ? ` ${capitalize(details.join(" "))}.` : "";
+  return `${member}'s ${ordinal(milestone)} bird was ${species.species}.${sightingSentence} Awarded for reaching ${milestone} lifetime species.`;
+}
+
+function upsertMilestoneBadge(nextBadge) {
+  const now = new Date().toISOString();
+  const existingIndex = userMilestoneBadges.findIndex((badge) => badge.id === nextBadge.id);
+
+  if (existingIndex >= 0) {
+    const existing = userMilestoneBadges[existingIndex];
+    userMilestoneBadges[existingIndex] = {
+      ...existing,
+      ...nextBadge,
+      awarded_at: existing.awarded_at || now,
+      created_at: existing.created_at || now,
+    };
+    return userMilestoneBadges[existingIndex];
+  }
+
+  const created = {
+    ...nextBadge,
+    awarded_at: now,
+    created_at: now,
+  };
+  userMilestoneBadges.push(created);
+  return created;
+}
+
+function getSpeciesId(obs) {
+  return normalizeKey(obs.scientific || obs.species);
+}
+
+function getUserId(member) {
+  return normalizeKey(member);
+}
+
+function getMemberByUserId(userId) {
+  return defaultMembers.concat(observations.map((obs) => obs.member)).find((member) => getUserId(member) === userId);
+}
+
+function ordinal(value) {
+  const remainder = value % 100;
+  if (remainder >= 11 && remainder <= 13) return `${value}th`;
+  switch (value % 10) {
+    case 1:
+      return `${value}st`;
+    case 2:
+      return `${value}nd`;
+    case 3:
+      return `${value}rd`;
+    default:
+      return `${value}th`;
+  }
+}
+
+function formatDate(value) {
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function capitalize(value) {
+  return value ? value[0].toUpperCase() + value.slice(1) : value;
+}
+
+function renderSpeciesTable() {
+  const query = speciesSearch.value.trim().toLowerCase();
+  const groups = speciesGroups().filter((group) => group.species.toLowerCase().includes(query));
+
+  speciesTable.innerHTML = "";
+  tableEmpty.style.display = groups.length ? "none" : "block";
+
+  groups.forEach((group) => {
+    const row = document.createElement("tr");
+    const firstDate = group.dates.sort()[0] || "Unknown";
+    row.innerHTML = `
+      <td><strong>${escapeHtml(group.species)}</strong></td>
+      <td><div class="pill-list">${[...group.members].map((member) => `<span class="pill">${escapeHtml(member)}</span>`).join("")}</div></td>
+      <td>${escapeHtml(firstDate)}</td>
+      <td>${escapeHtml([...group.locations].slice(0, 3).join(", ") || "Unknown")}</td>
+    `;
+    speciesTable.appendChild(row);
+  });
+}
+
+async function saveImport(member, sourceName, imported) {
+  saveObservations();
+
+  if (!isRemoteReady) {
+    syncStatus.textContent = `Saved ${imported.length} rows locally. Sign in after Supabase is connected to sync shared data.`;
+    return;
+  }
+
+  try {
+    await remoteDelete("observations", `member_name=eq.${encodeURIComponent(member)}`);
+    const importRows = await remoteInsert("imports", [
+      {
+        member_name: member,
+        source_name: sourceName,
+        row_count: imported.length,
+      },
+    ]);
+    const importId = importRows[0]?.id || null;
+    const remoteRows = imported.map((obs) => toRemoteObservation(obs, importId));
+
+    if (remoteRows.length) {
+      await remoteUpsert("observations", remoteRows, "id");
+    }
+
+    syncStatus.textContent = `Synced ${imported.length} ${member} observations to Supabase.`;
+  } catch (error) {
+    syncStatus.textContent = `Saved locally, but Supabase sync failed: ${error.message}`;
+  }
+}
+
+async function syncMilestoneBadges() {
+  if (!isRemoteReady || !userMilestoneBadges.length) return;
+  try {
+    await remoteUpsert("user_milestone_badges", userMilestoneBadges.map(toRemoteBadge), "id");
+  } catch (error) {
+    syncStatus.textContent = `Badge sync failed: ${error.message}`;
+  }
+}
+
+async function supabaseAuthRequest(path, body) {
+  const response = await fetch(`${appConfig.supabaseUrl}/auth/v1${path}`, {
+    method: "POST",
+    headers: supabaseHeaders(false),
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.msg || data.error_description || data.error || response.statusText);
+  }
+  return response.json().catch(() => ({}));
+}
+
+async function remoteSelect(table) {
+  const response = await fetch(`${appConfig.supabaseUrl}/rest/v1/${table}?select=*`, {
+    headers: supabaseHeaders(true),
+  });
+  return parseSupabaseResponse(response);
+}
+
+async function remoteInsert(table, rows) {
+  const response = await fetch(`${appConfig.supabaseUrl}/rest/v1/${table}`, {
+    method: "POST",
+    headers: { ...supabaseHeaders(true), Prefer: "return=representation" },
+    body: JSON.stringify(rows),
+  });
+  return parseSupabaseResponse(response);
+}
+
+async function remoteUpsert(table, rows, conflictColumn) {
+  const response = await fetch(`${appConfig.supabaseUrl}/rest/v1/${table}?on_conflict=${conflictColumn}`, {
+    method: "POST",
+    headers: { ...supabaseHeaders(true), Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify(rows),
+  });
+  return parseSupabaseResponse(response);
+}
+
+async function remoteDelete(table, filter = "") {
+  const url = `${appConfig.supabaseUrl}/rest/v1/${table}${filter ? `?${filter}` : ""}`;
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: supabaseHeaders(true),
+  });
+  if (!response.ok) await parseSupabaseResponse(response);
+}
+
+async function parseSupabaseResponse(response) {
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : [];
+  if (!response.ok) {
+    throw new Error(data.message || data.msg || data.error || response.statusText);
+  }
+  return data;
+}
+
+function supabaseHeaders(includeAuth) {
+  const headers = {
+    apikey: appConfig.supabaseAnonKey,
+    "Content-Type": "application/json",
+  };
+  if (includeAuth && authSession?.access_token) {
+    headers.Authorization = `Bearer ${authSession.access_token}`;
+  }
+  return headers;
+}
+
+function hasSupabaseConfig() {
+  return Boolean(appConfig.supabaseUrl && appConfig.supabaseAnonKey);
+}
+
+function toRemoteObservation(obs, importId) {
+  return {
+    id: obs.id,
+    member_name: obs.member,
+    species_common_name: obs.species,
+    species_scientific_name: obs.scientific || null,
+    date_seen: obs.date || null,
+    count_seen: obs.count || null,
+    latitude: obs.latitude,
+    longitude: obs.longitude,
+    location_name: obs.location || null,
+    checklist_id: obs.checklist || null,
+    source_name: obs.sourceName || null,
+    import_id: importId,
+  };
+}
+
+function fromRemoteObservation(row) {
+  return {
+    id: row.id,
+    member: row.member_name,
+    species: row.species_common_name,
+    scientific: row.species_scientific_name || "",
+    date: row.date_seen || "",
+    count: row.count_seen || "",
+    latitude: parseNumber(row.latitude),
+    longitude: parseNumber(row.longitude),
+    location: row.location_name || "Unlisted place",
+    checklist: row.checklist_id || "",
+    sourceName: row.source_name || "",
+  };
+}
+
+function toRemoteBadge(badge) {
+  return {
+    id: badge.id,
+    badge_kind: badge.badge_kind,
+    user_id: badge.user_id,
+    member_name: badge.member_name || getMemberByUserId(badge.user_id) || badge.user_id,
+    milestone_number: badge.milestone_number,
+    species_id: badge.species_id || null,
+    species_common_name: badge.species_common_name || null,
+    species_scientific_name: badge.species_scientific_name || null,
+    date_seen: badge.date_seen || null,
+    location_name: badge.location_name || null,
+    badge_title: badge.badge_title,
+    badge_description: badge.badge_description,
+    badge_image_url: badge.badge_image_url || null,
+    awarded_at: badge.awarded_at,
+    created_at: badge.created_at,
+  };
+}
+
+function fromRemoteBadge(row) {
+  return {
+    id: row.id,
+    badge_kind: row.badge_kind,
+    user_id: row.user_id,
+    member_name: row.member_name,
+    milestone_number: row.milestone_number,
+    species_id: row.species_id || "",
+    species_common_name: row.species_common_name || "",
+    species_scientific_name: row.species_scientific_name || "",
+    date_seen: row.date_seen || "",
+    location_name: row.location_name || "",
+    badge_title: row.badge_title,
+    badge_description: row.badge_description,
+    badge_image_url: row.badge_image_url || "",
+    awarded_at: row.awarded_at,
+    created_at: row.created_at,
+  };
+}
+
+function renderMap() {
+  const ctx = canvas.getContext("2d");
+  const rect = canvas.getBoundingClientRect();
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = Math.max(600, Math.floor(rect.width * scale));
+  canvas.height = Math.max(360, Math.floor(rect.height * scale));
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+
+  const width = rect.width;
+  const height = rect.height;
+  ctx.clearRect(0, 0, width, height);
+  drawBaseMap(ctx, width, height);
+
+  const selected = memberFilter.value;
+  const points = observations
+    .filter((obs) => selected === "all" || obs.member === selected)
+    .filter((obs) => obs.latitude !== null && obs.longitude !== null);
+
+  mapEmpty.style.display = points.length ? "none" : "grid";
+  if (!points.length) return;
+
+  const bounds = boundsFor(points);
+  points.forEach((point) => {
+    const position = project(point, bounds, width, height);
+    const gradient = ctx.createRadialGradient(position.x, position.y, 0, position.x, position.y, 58);
+    gradient.addColorStop(0, "rgba(199, 91, 87, 0.42)");
+    gradient.addColorStop(0.38, "rgba(243, 201, 93, 0.28)");
+    gradient.addColorStop(1, "rgba(243, 201, 93, 0)");
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(position.x, position.y, 58, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
+  points.slice(0, 400).forEach((point) => {
+    const position = project(point, bounds, width, height);
+    ctx.fillStyle = "rgba(34, 49, 45, 0.42)";
+    ctx.beginPath();
+    ctx.arc(position.x, position.y, 2.3, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawBaseMap(ctx, width, height) {
+  ctx.save();
+  ctx.globalAlpha = 0.46;
+  ctx.strokeStyle = "rgba(80, 111, 85, 0.28)";
+  ctx.lineWidth = 1;
+  for (let x = width * 0.1; x < width; x += width * 0.16) {
+    ctx.beginPath();
+    ctx.moveTo(x, height * 0.08);
+    ctx.bezierCurveTo(x - 22, height * 0.32, x + 18, height * 0.62, x - 8, height * 0.92);
+    ctx.stroke();
+  }
+  for (let y = height * 0.16; y < height; y += height * 0.16) {
+    ctx.beginPath();
+    ctx.moveTo(width * 0.06, y);
+    ctx.bezierCurveTo(width * 0.28, y - 18, width * 0.62, y + 18, width * 0.94, y - 6);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function boundsFor(points) {
+  const lats = points.map((point) => point.latitude);
+  const lngs = points.map((point) => point.longitude);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLng = Math.min(...lngs);
+  const maxLng = Math.max(...lngs);
+  return {
+    minLat: minLat === maxLat ? minLat - 0.05 : minLat,
+    maxLat: minLat === maxLat ? maxLat + 0.05 : maxLat,
+    minLng: minLng === maxLng ? minLng - 0.05 : minLng,
+    maxLng: minLng === maxLng ? maxLng + 0.05 : maxLng,
+  };
+}
+
+function project(point, bounds, width, height) {
+  const pad = 52;
+  const x = pad + ((point.longitude - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * (width - pad * 2);
+  const y = pad + ((bounds.maxLat - point.latitude) / (bounds.maxLat - bounds.minLat)) * (height - pad * 2);
+  return { x, y };
+}
+
+function saveObservations() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(observations));
+}
+
+function saveMilestoneBadgeStore() {
+  localStorage.setItem(BADGE_STORAGE_KEY, JSON.stringify(userMilestoneBadges));
+}
+
+function loadObservations() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function loadMilestoneBadgeStore() {
+  try {
+    return JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY)) || [];
+  } catch {
+    return [];
+  }
+}
+
+function loadAuthSession() {
+  try {
+    const session = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY));
+    if (!session?.access_token) return null;
+    if (session.expires_at && session.expires_at < Date.now()) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rain or Shine Birding Team</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="hero">
+      <img class="hero__image" src="./assets/clay-birding-hero.png" alt="Claymation birders in a rain-fresh field" />
+      <div class="hero__shade"></div>
+      <nav class="topbar" aria-label="Site">
+        <div class="brand">
+          <span class="brand__mark" aria-hidden="true">RS</span>
+          <span>Rain or Shine Birding Team</span>
+        </div>
+        <button id="resetData" class="ghost-button" type="button">Clear data</button>
+      </nav>
+      <section class="hero__copy" aria-labelledby="pageTitle">
+        <p class="eyebrow">Private flock dashboard</p>
+        <h1 id="pageTitle">"Blessed are the whimsical, for they shall see birds."</h1>
+        <p class="lede">
+          Upload the three life lists, combine the team's birds, and see where the shared trail has wandered.
+        </p>
+      </section>
+    </header>
+
+    <main>
+      <section class="upload-band" aria-labelledby="uploadTitle">
+        <div>
+          <p class="eyebrow">Life list imports</p>
+          <h2 id="uploadTitle">Add an eBird or Merlin-linked CSV</h2>
+          <p id="syncStatus" class="sync-status">Local preview mode</p>
+        </div>
+        <div class="upload-grid">
+          <label class="upload-card">
+            <span class="upload-card__name">Jeff</span>
+            <input class="file-input" type="file" accept=".csv,text/csv" data-member="Jeff" />
+            <span class="upload-card__hint">Choose CSV</span>
+          </label>
+          <label class="upload-card">
+            <span class="upload-card__name">Alex</span>
+            <input class="file-input" type="file" accept=".csv,text/csv" data-member="Alex" />
+            <span class="upload-card__hint">Choose CSV</span>
+          </label>
+          <label class="upload-card">
+            <span class="upload-card__name">Matt</span>
+            <input class="file-input" type="file" accept=".csv,text/csv" data-member="Matt" />
+            <span class="upload-card__hint">Choose CSV</span>
+          </label>
+        </div>
+      </section>
+
+      <section class="access-panel" aria-labelledby="accessTitle">
+        <div>
+          <p class="eyebrow">Team access</p>
+          <h2 id="accessTitle">Private team sign-in</h2>
+        </div>
+        <form id="authForm" class="auth-form">
+          <input id="authEmail" type="email" placeholder="Email address" autocomplete="email" aria-label="Email address" />
+          <button type="submit">Send magic link</button>
+          <button id="signOutButton" class="ghost-button" type="button" hidden>Sign out</button>
+        </form>
+        <p id="authStatus" class="sync-status">Connect Supabase to enable shared team data.</p>
+      </section>
+
+      <section class="stats" aria-label="Team stats">
+        <article>
+          <span id="speciesCount">0</span>
+          <p>Team species</p>
+        </article>
+        <article>
+          <span id="observationCount">0</span>
+          <p>Observations</p>
+        </article>
+        <article>
+          <span id="locationCount">0</span>
+          <p>Mapped places</p>
+        </article>
+        <article>
+          <span id="sharedCount">0</span>
+          <p>Seen by all three</p>
+        </article>
+      </section>
+
+      <section class="workspace">
+        <div class="panel map-panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Shared trail</p>
+              <h2>Where the team has birded</h2>
+            </div>
+            <select id="memberFilter" aria-label="Filter map by member">
+              <option value="all">Everyone</option>
+            </select>
+          </div>
+          <div class="map-wrap">
+            <canvas id="heatMap" width="1000" height="620" aria-label="Heat map of uploaded observation locations"></canvas>
+            <p id="mapEmpty" class="empty-state">Upload lists with latitude and longitude to paint the map.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Overlap</p>
+              <h2>Birds by birder</h2>
+            </div>
+          </div>
+          <div id="memberBreakdown" class="member-breakdown"></div>
+        </div>
+      </section>
+
+      <section class="assistant-panel" aria-labelledby="assistantTitle">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Birding assistant</p>
+            <h2 id="assistantTitle">Ask ChatGPT</h2>
+          </div>
+          <span id="assistantStatus" class="status-pill">Demo mode</span>
+        </div>
+        <div class="assistant-layout">
+          <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+          <form id="chatForm" class="chat-composer">
+            <div class="quick-prompts" aria-label="Quick prompts">
+              <button type="button" data-prompt="Help me identify this bird from field marks: size, colors, behavior, habitat, location, and call.">ID helper</button>
+              <button type="button" data-prompt="Compare two similar species and give me the best field marks to separate them.">Compare birds</button>
+              <button type="button" data-prompt="Plan a rain-or-shine bird walk for our team this weekend.">Trip ideas</button>
+            </div>
+            <label class="image-picker">
+              <input id="birdImageInput" type="file" accept="image/*" />
+              <span>Attach bird photo</span>
+            </label>
+            <div id="imagePreview" class="image-preview" hidden></div>
+            <div class="message-row">
+              <textarea id="chatInput" rows="3" placeholder="Ask for bird ID help, field marks, trip ideas, or general birding chat." aria-label="Message ChatGPT"></textarea>
+              <button type="submit">Send</button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="trophy-case" aria-labelledby="trophyTitle">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Trophy case</p>
+            <h2 id="trophyTitle">Milestone Birds</h2>
+          </div>
+        </div>
+        <div id="profileTrophyCase" class="profile-grid"></div>
+      </section>
+
+      <section class="list-section" aria-labelledby="listTitle">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Combined life list</p>
+            <h2 id="listTitle">Species ledger</h2>
+          </div>
+          <input id="speciesSearch" type="search" placeholder="Search species" aria-label="Search species" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Species</th>
+                <th>Seen by</th>
+                <th>First date</th>
+                <th>Places</th>
+              </tr>
+            </thead>
+            <tbody id="speciesTable"></tbody>
+          </table>
+          <p id="tableEmpty" class="empty-state">The ledger is waiting for its first whimsical sighting.</p>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      window.RSB_CHAT_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/chatgpt";
+      window.RSB_CONFIG_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/config";
+    </script>
+    <script src="./app.js"></script>
+  </body>
+</html>
