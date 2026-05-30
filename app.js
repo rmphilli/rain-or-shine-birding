@@ -2,6 +2,9 @@ const STORAGE_KEY = "rainOrShineBirdingData";
 const BADGE_STORAGE_KEY = "rainOrShineMilestoneBadges";
 const SESSION_STORAGE_KEY = "rainOrShineSupabaseSession";
 const defaultMembers = ["Jeff", "Alex", "Matt"];
+const emailMemberMap = {
+  "rmphilli@gmail.com": "Matt",
+};
 
 let observations = loadObservations();
 let userMilestoneBadges = loadMilestoneBadgeStore();
@@ -13,7 +16,7 @@ const fileInputs = document.querySelectorAll(".file-input");
 const speciesTable = document.querySelector("#speciesTable");
 const tableEmpty = document.querySelector("#tableEmpty");
 const mapEmpty = document.querySelector("#mapEmpty");
-const canvas = document.querySelector("#heatMap");
+const mapContainer = document.querySelector("#birdMap");
 const memberFilter = document.querySelector("#memberFilter");
 const speciesSearch = document.querySelector("#speciesSearch");
 const memberBreakdown = document.querySelector("#memberBreakdown");
@@ -29,8 +32,14 @@ const authEmail = document.querySelector("#authEmail");
 const authStatus = document.querySelector("#authStatus");
 const signOutButton = document.querySelector("#signOutButton");
 const syncStatus = document.querySelector("#syncStatus");
+const welcomeMessage = document.querySelector("#welcomeMessage");
+const whimsyTitle = document.querySelector("#whimsyTitle");
+const whimsyText = document.querySelector("#whimsyText");
+const whimsyMeta = document.querySelector("#whimsyMeta");
 
 let attachedBirdImage = null;
+let birdMap = null;
+let birdMapLayer = null;
 
 const aliases = {
   species: ["commonname", "common name", "species", "englishname", "english name"],
@@ -83,6 +92,7 @@ window.addEventListener("resize", renderMap);
 setupChatAssistant();
 setupAuth();
 initRemoteData();
+renderWhimsyWatch();
 
 render();
 
@@ -254,9 +264,40 @@ function renderMemberBreakdown() {
   });
 }
 
+function renderWhimsyWatch() {
+  const dispatches = [
+    {
+      title: "Saucer Weather Advisory",
+      text: "Cloud decks with soft edges are excellent for dramatic bird photos and suspiciously perfect for friendly saucer silhouettes. Official recommendation: scan for raptors first, mysteries second.",
+      meta: "Updated this visit | UFO desk",
+    },
+    {
+      title: "Sasquatch Track Protocol",
+      text: "If a muddy footprint appears near a warbler hotspot, document scale, substrate, stride, and nearby birds. If it turns out to be a hiking boot, the checklist still counts.",
+      meta: "Updated this visit | Forest folklore unit",
+    },
+    {
+      title: "The Cardinal Remains Unbothered",
+      text: "Preliminary Rain or Shine analysis suggests cardinals would continue calling from exposed branches even during a low-altitude saucer pass. Confidence: whimsical, but emotionally strong.",
+      meta: "Updated this visit | Backyard anomalies",
+    },
+    {
+      title: "Bigfoot’s Likely Life Bird",
+      text: "Based on habitat preference and a healthy respect for dense cover, today’s speculative nominee is Pileated Woodpecker. Large, loud, elusive, and absolutely on brand.",
+      meta: "Updated this visit | Cryptid ornithology",
+    },
+  ];
+  const index = new Date().getDate() % dispatches.length;
+  const dispatch = dispatches[index];
+  whimsyTitle.textContent = dispatch.title;
+  whimsyText.textContent = dispatch.text;
+  whimsyMeta.textContent = dispatch.meta;
+}
+
 function renderProfileTrophyCase() {
   const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
   profileTrophyCase.innerHTML = "";
+  userMilestoneBadges = userMilestoneBadges.filter((badge) => badge.badge_kind === "species");
 
   members.forEach((member) => {
     const userId = getUserId(member);
@@ -268,18 +309,18 @@ function renderProfileTrophyCase() {
     const badgesMarkup = earnedBadges.length
       ? earnedBadges
           .map((badge) => {
-            const isGeneral = badge.badge_kind === "general";
-            const iconText = isGeneral ? badge.milestone_number : badge.species_common_name.slice(0, 1);
+            const iconText = badge.milestone_number;
             const scientificName = badge.species_scientific_name
               ? `<p class="badge-card__scientific">${escapeHtml(badge.species_scientific_name)}</p>`
               : "";
             return `
-              <article class="badge-card ${isGeneral ? "badge-card--general" : ""}">
+              <article class="badge-card">
                 <span class="badge-icon" aria-hidden="true">${escapeHtml(iconText)}</span>
                 <div>
                   <strong>${escapeHtml(badge.badge_title)}</strong>
                   ${scientificName}
                   <p>${escapeHtml(badge.badge_description)}</p>
+                  <p>${escapeHtml(formatBadgePlace(badge))}</p>
                 </div>
               </article>
             `;
@@ -458,6 +499,8 @@ function applyAuthHash() {
 function updateAuthStatus() {
   const configured = hasSupabaseConfig();
   signOutButton.hidden = !authSession;
+  const memberName = getSignedInMemberName();
+  welcomeMessage.textContent = memberName ? `Welcome, ${memberName}.` : "Welcome, whimsical birder.";
 
   if (!configured) {
     authStatus.textContent = "Connect Supabase to enable shared team data.";
@@ -475,6 +518,27 @@ function updateSyncStatus() {
     syncStatus.textContent = "Shared database connected. Sign in to sync.";
   } else {
     syncStatus.textContent = "Shared database connected.";
+  }
+}
+
+function getSignedInMemberName() {
+  const email = getSignedInEmail();
+  if (!email) return "";
+  return emailMemberMap[email.toLowerCase()] || email.split("@")[0];
+}
+
+function getSignedInEmail() {
+  const payload = decodeJwtPayload(authSession?.access_token);
+  return payload?.email || payload?.user_metadata?.email || "";
+}
+
+function decodeJwtPayload(token) {
+  if (!token || !token.includes(".")) return null;
+  try {
+    const payload = token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/");
+    return JSON.parse(atob(payload));
+  } catch {
+    return null;
   }
 }
 
@@ -501,7 +565,7 @@ async function getAssistantReply(message, image) {
       }
       return data.reply || data.output_text || "I received the request, but no reply text came back.";
     } catch (error) {
-      return `The live assistant endpoint did not respond, so I am falling back to demo mode. ${getDemoAssistantReply(message, image)}`;
+      return `The live assistant endpoint returned this error: ${error.message}. Demo fallback: ${getDemoAssistantReply(message, image)}`;
     }
   }
 
@@ -559,16 +623,13 @@ function calculateMilestoneBirdBadges(userId) {
     const milestoneSpecies = lifeList[milestone - 1];
     if (!milestoneSpecies) return;
 
-    const generalBadge = buildGeneralMilestoneBadge(userId, member, milestone, milestoneSpecies);
     const speciesBadge = buildSpeciesMilestoneBadge(userId, member, milestone, milestoneSpecies);
 
-    earned.push(upsertMilestoneBadge(generalBadge));
     earned.push(upsertMilestoneBadge(speciesBadge));
   });
 
   return earned.sort((a, b) => {
-    if (a.milestone_number !== b.milestone_number) return a.milestone_number - b.milestone_number;
-    return a.badge_kind.localeCompare(b.badge_kind);
+    return a.milestone_number - b.milestone_number;
   });
 }
 
@@ -605,24 +666,6 @@ function getMilestoneNumbers(totalSpecies) {
   return milestones;
 }
 
-function buildGeneralMilestoneBadge(userId, member, milestone, species) {
-  return {
-    id: `${userId}-general-${milestone}`,
-    badge_kind: "general",
-    user_id: userId,
-    member_name: member,
-    milestone_number: milestone,
-    species_id: null,
-    species_common_name: "",
-    species_scientific_name: "",
-    date_seen: species.date || "",
-    location_name: species.location || "",
-    badge_title: milestone === 1 ? "First Feather" : `${milestone} Birds`,
-    badge_description: `Awarded for reaching ${milestone} lifetime ${milestone === 1 ? "species" : "species"}.`,
-    badge_image_url: "placeholder://general-milestone-badge",
-  };
-}
-
 function buildSpeciesMilestoneBadge(userId, member, milestone, species) {
   return {
     id: `${userId}-species-${milestone}`,
@@ -642,11 +685,16 @@ function buildSpeciesMilestoneBadge(userId, member, milestone, species) {
 }
 
 function buildSpeciesBadgeDescription(member, milestone, species) {
-  const details = [];
-  if (species.date) details.push(`seen on ${formatDate(species.date)}`);
-  if (species.location) details.push(`at ${species.location}`);
-  const sightingSentence = details.length ? ` ${capitalize(details.join(" "))}.` : "";
-  return `${member}'s ${ordinal(milestone)} bird was ${species.species}.${sightingSentence} Awarded for reaching ${milestone} lifetime species.`;
+  const dateText = species.date ? ` on ${formatDate(species.date)}` : "";
+  const locationText = species.location ? ` at ${species.location}` : "";
+  return `Big day for ${member}: ${species.species} was the ${ordinal(milestone)} bird on the life list${dateText}${locationText}. Rain or shine, that one gets a spot in the trophy case.`;
+}
+
+function formatBadgePlace(badge) {
+  if (badge.date_seen && badge.location_name) return `${formatDate(badge.date_seen)} | ${badge.location_name}`;
+  if (badge.date_seen) return formatDate(badge.date_seen);
+  if (badge.location_name) return badge.location_name;
+  return "Location not listed";
 }
 
 function upsertMilestoneBadge(nextBadge) {
@@ -712,22 +760,35 @@ function capitalize(value) {
 
 function renderSpeciesTable() {
   const query = speciesSearch.value.trim().toLowerCase();
-  const groups = speciesGroups().filter((group) => group.species.toLowerCase().includes(query));
+  const entries = observations
+    .filter((obs) => {
+      const haystack = `${obs.species} ${obs.member} ${obs.location || ""} ${obs.date || ""}`.toLowerCase();
+      return haystack.includes(query);
+    })
+    .sort(compareObservationNewestFirst);
 
   speciesTable.innerHTML = "";
-  tableEmpty.style.display = groups.length ? "none" : "block";
+  tableEmpty.style.display = entries.length ? "none" : "block";
 
-  groups.forEach((group) => {
+  entries.forEach((obs) => {
     const row = document.createElement("tr");
-    const firstDate = group.dates.sort()[0] || "Unknown";
     row.innerHTML = `
-      <td><strong>${escapeHtml(group.species)}</strong></td>
-      <td><div class="pill-list">${[...group.members].map((member) => `<span class="pill">${escapeHtml(member)}</span>`).join("")}</div></td>
-      <td>${escapeHtml(firstDate)}</td>
-      <td>${escapeHtml([...group.locations].slice(0, 3).join(", ") || "Unknown")}</td>
+      <td><strong>${escapeHtml(obs.species)}</strong>${obs.scientific ? `<br><span class="scientific">${escapeHtml(obs.scientific)}</span>` : ""}</td>
+      <td><div class="pill-list"><span class="pill">${escapeHtml(obs.member)}</span></div></td>
+      <td>${escapeHtml(obs.date ? formatDate(obs.date) : "Unknown")}</td>
+      <td>${escapeHtml(obs.location || "Unknown")}</td>
     `;
     speciesTable.appendChild(row);
   });
+}
+
+function compareObservationNewestFirst(a, b) {
+  const dateA = a.date || "0000-00-00";
+  const dateB = b.date || "0000-00-00";
+  if (dateA !== dateB) return dateB.localeCompare(dateA);
+  const speciesCompare = a.species.localeCompare(b.species);
+  if (speciesCompare !== 0) return speciesCompare;
+  return a.member.localeCompare(b.member);
 }
 
 async function saveImport(member, sourceName, imported) {
@@ -761,9 +822,10 @@ async function saveImport(member, sourceName, imported) {
 }
 
 async function syncMilestoneBadges() {
-  if (!isRemoteReady || !userMilestoneBadges.length) return;
+  const speciesBadges = userMilestoneBadges.filter((badge) => badge.badge_kind === "species");
+  if (!isRemoteReady || !speciesBadges.length) return;
   try {
-    await remoteUpsert("user_milestone_badges", userMilestoneBadges.map(toRemoteBadge), "id");
+    await remoteUpsert("user_milestone_badges", speciesBadges.map(toRemoteBadge), "id");
   } catch (error) {
     syncStatus.textContent = `Badge sync failed: ${error.message}`;
   }
@@ -914,88 +976,53 @@ function fromRemoteBadge(row) {
 }
 
 function renderMap() {
-  const ctx = canvas.getContext("2d");
-  const rect = canvas.getBoundingClientRect();
-  const scale = window.devicePixelRatio || 1;
-  canvas.width = Math.max(600, Math.floor(rect.width * scale));
-  canvas.height = Math.max(360, Math.floor(rect.height * scale));
-  ctx.setTransform(scale, 0, 0, scale, 0, 0);
-
-  const width = rect.width;
-  const height = rect.height;
-  ctx.clearRect(0, 0, width, height);
-  drawBaseMap(ctx, width, height);
-
   const selected = memberFilter.value;
   const points = observations
     .filter((obs) => selected === "all" || obs.member === selected)
     .filter((obs) => obs.latitude !== null && obs.longitude !== null);
 
   mapEmpty.style.display = points.length ? "none" : "grid";
+  if (!window.L) {
+    mapEmpty.style.display = "grid";
+    mapEmpty.textContent = "Map tiles are loading. Refresh if the map does not appear.";
+    return;
+  }
+
+  if (!birdMap) {
+    birdMap = L.map(mapContainer, {
+      scrollWheelZoom: false,
+    }).setView([39.5, -98.35], 4);
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap contributors",
+    }).addTo(birdMap);
+  }
+
+  if (birdMapLayer) birdMapLayer.remove();
+  birdMapLayer = L.layerGroup().addTo(birdMap);
   if (!points.length) return;
 
-  const bounds = boundsFor(points);
+  const bounds = [];
   points.forEach((point) => {
-    const position = project(point, bounds, width, height);
-    const gradient = ctx.createRadialGradient(position.x, position.y, 0, position.x, position.y, 58);
-    gradient.addColorStop(0, "rgba(199, 91, 87, 0.42)");
-    gradient.addColorStop(0.38, "rgba(243, 201, 93, 0.28)");
-    gradient.addColorStop(1, "rgba(243, 201, 93, 0)");
-    ctx.fillStyle = gradient;
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, 58, 0, Math.PI * 2);
-    ctx.fill();
+    const marker = L.circleMarker([point.latitude, point.longitude], {
+      radius: 7,
+      color: "#fffdf5",
+      weight: 2,
+      fillColor: "#c75b57",
+      fillOpacity: 0.88,
+    }).addTo(birdMapLayer);
+    marker.bindPopup(`
+      <strong>${escapeHtml(point.species)}</strong><br>
+      ${escapeHtml(point.member)}<br>
+      ${escapeHtml(point.date ? formatDate(point.date) : "Unknown date")}<br>
+      ${escapeHtml(point.location || "Unknown place")}
+    `);
+    bounds.push([point.latitude, point.longitude]);
   });
 
-  points.slice(0, 400).forEach((point) => {
-    const position = project(point, bounds, width, height);
-    ctx.fillStyle = "rgba(34, 49, 45, 0.42)";
-    ctx.beginPath();
-    ctx.arc(position.x, position.y, 2.3, 0, Math.PI * 2);
-    ctx.fill();
-  });
-}
-
-function drawBaseMap(ctx, width, height) {
-  ctx.save();
-  ctx.globalAlpha = 0.46;
-  ctx.strokeStyle = "rgba(80, 111, 85, 0.28)";
-  ctx.lineWidth = 1;
-  for (let x = width * 0.1; x < width; x += width * 0.16) {
-    ctx.beginPath();
-    ctx.moveTo(x, height * 0.08);
-    ctx.bezierCurveTo(x - 22, height * 0.32, x + 18, height * 0.62, x - 8, height * 0.92);
-    ctx.stroke();
-  }
-  for (let y = height * 0.16; y < height; y += height * 0.16) {
-    ctx.beginPath();
-    ctx.moveTo(width * 0.06, y);
-    ctx.bezierCurveTo(width * 0.28, y - 18, width * 0.62, y + 18, width * 0.94, y - 6);
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function boundsFor(points) {
-  const lats = points.map((point) => point.latitude);
-  const lngs = points.map((point) => point.longitude);
-  const minLat = Math.min(...lats);
-  const maxLat = Math.max(...lats);
-  const minLng = Math.min(...lngs);
-  const maxLng = Math.max(...lngs);
-  return {
-    minLat: minLat === maxLat ? minLat - 0.05 : minLat,
-    maxLat: minLat === maxLat ? maxLat + 0.05 : maxLat,
-    minLng: minLng === maxLng ? minLng - 0.05 : minLng,
-    maxLng: minLng === maxLng ? maxLng + 0.05 : maxLng,
-  };
-}
-
-function project(point, bounds, width, height) {
-  const pad = 52;
-  const x = pad + ((point.longitude - bounds.minLng) / (bounds.maxLng - bounds.minLng)) * (width - pad * 2);
-  const y = pad + ((bounds.maxLat - point.latitude) / (bounds.maxLat - bounds.minLat)) * (height - pad * 2);
-  return { x, y };
+  birdMap.fitBounds(bounds, { padding: [26, 26], maxZoom: 12 });
+  setTimeout(() => birdMap.invalidateSize(), 0);
 }
 
 function saveObservations() {

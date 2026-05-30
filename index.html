@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rain or Shine Birding Team</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -97,7 +98,7 @@
             </select>
           </div>
           <div class="map-wrap">
-            <canvas id="heatMap" width="1000" height="620" aria-label="Heat map of uploaded observation locations"></canvas>
+            <div id="birdMap" aria-label="Map of uploaded observation locations"></div>
             <p id="mapEmpty" class="empty-state">Upload lists with latitude and longitude to paint the map.</p>
           </div>
         </div>
@@ -110,6 +111,15 @@
             </div>
           </div>
           <div id="memberBreakdown" class="member-breakdown"></div>
+          <article class="whimsy-card" aria-labelledby="whimsyTitle">
+            <div class="whimsy-card__icon" aria-hidden="true">?</div>
+            <div>
+              <p class="eyebrow">Whimsy watch</p>
+              <h3 id="whimsyTitle">Field note from the edge</h3>
+              <p id="whimsyText">Loading a curious little dispatch...</p>
+              <p id="whimsyMeta" class="whimsy-card__meta"></p>
+            </div>
+          </article>
         </div>
       </section>
 
@@ -155,10 +165,10 @@
       <section class="list-section" aria-labelledby="listTitle">
         <div class="panel__header">
           <div>
-            <p class="eyebrow">Combined life list</p>
-            <h2 id="listTitle">Species ledger</h2>
+            <p class="eyebrow">Recent sightings</p>
+            <h2 id="listTitle">Observation ledger</h2>
           </div>
-          <input id="speciesSearch" type="search" placeholder="Search species" aria-label="Search species" />
+          <input id="speciesSearch" type="search" placeholder="Search species, place, or birder" aria-label="Search observations" />
         </div>
         <div class="table-wrap">
           <table>
@@ -166,8 +176,8 @@
               <tr>
                 <th>Species</th>
                 <th>Seen by</th>
-                <th>First date</th>
-                <th>Places</th>
+                <th>Date</th>
+                <th>Place</th>
               </tr>
             </thead>
             <tbody id="speciesTable"></tbody>
@@ -181,6 +191,7 @@
       window.RSB_CHAT_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/chatgpt";
       window.RSB_CONFIG_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/config";
     </script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="./app.js"></script>
   </body>
 </html>
