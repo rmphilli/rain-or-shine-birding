@@ -345,7 +345,6 @@ function renderBirderTypeBadges() {
       <div class="type-badge__seal" aria-hidden="true">
         <div class="type-badge__inner type-badge__inner--${colorClass}">
           <span class="type-badge__face"></span>
-          <span class="type-badge__logo">RS</span>
           <span class="type-badge__name">${escapeHtml(member)}</span>
         </div>
       </div>
@@ -373,12 +372,16 @@ function calculateBirderTypeProfiles(members) {
       const places = new Set(mapped.map((obs) => obs.location || `${obs.latitude.toFixed(2)},${obs.longitude.toFixed(2)}`));
       const soloSpecies = uniqueSpecies.filter((obs) => speciesSeenBy.get(getSpeciesId(obs))?.size === 1);
       const dates = memberObservations.map((obs) => obs.date).filter(Boolean).sort();
+      const latestObservation = memberObservations
+        .filter((obs) => obs.date)
+        .sort(compareObservationNewestFirst)[0];
       const latitudes = mapped.map((obs) => obs.latitude);
       const longitudes = mapped.map((obs) => obs.longitude);
       const travelSpan =
         latitudes.length && longitudes.length
           ? Math.abs(Math.max(...latitudes) - Math.min(...latitudes)) + Math.abs(Math.max(...longitudes) - Math.min(...longitudes))
           : 0;
+      const signatureBird = latestObservation?.species || uniqueSpecies[0]?.species || "a mystery bird";
 
       return [
         member,
@@ -393,6 +396,11 @@ function calculateBirderTypeProfiles(members) {
           warblers: countSpeciesMatches(memberObservations, /warbler|vireo|kinglet|gnatcatcher/i),
           raptors: countSpeciesMatches(memberObservations, /hawk|eagle|falcon|kite|osprey|owl|vulture|harrier/i),
           waterBirds: countSpeciesMatches(memberObservations, /duck|goose|swan|heron|egret|rail|gull|tern|sandpiper|plover|pelican|cormorant|loon|grebe/i),
+          signatureBird,
+          soloBird: soloSpecies[0]?.species || signatureBird,
+          warblerBird: findSpeciesNameMatch(memberObservations, /warbler|vireo|kinglet|gnatcatcher/i) || signatureBird,
+          raptorBird: findSpeciesNameMatch(memberObservations, /hawk|eagle|falcon|kite|osprey|owl|vulture|harrier/i) || signatureBird,
+          waterBird: findSpeciesNameMatch(memberObservations, /duck|goose|swan|heron|egret|rail|gull|tern|sandpiper|plover|pelican|cormorant|loon|grebe/i) || signatureBird,
         },
       ];
     })
@@ -432,37 +440,37 @@ function getBirderTypeCandidates(data, leaders) {
     {
       type: "Range Roamer",
       score: leaders.travelSpan === data.member ? data.travelSpan + 30 : data.travelSpan,
-      reason: `${data.member} has the widest wandering footprint, turning scattered stops and road-trip edges into ${data.uniqueSpecies} Life Listers across ${data.places} mapped places.`,
+      reason: `${data.member} has the widest wandering footprint, with ${data.signatureBird} riding along as proof that scattered stops can become ${data.uniqueSpecies} Life Listers across ${data.places} mapped places.`,
     },
     {
       type: "Only-Bird Oracle",
       score: leaders.soloSpecies === data.member ? data.soloSpecies + 25 : data.soloSpecies,
-      reason: `${data.member} is carrying ${data.soloSpecies} team-only birds, the kind of quiet finds that make the shared list feel deliciously personal.`,
+      reason: `${data.member} is carrying ${data.soloSpecies} team-only birds, including ${data.soloBird}; the kind of quiet find that makes the shared list feel deliciously personal.`,
     },
     {
       type: "Checklist Engine",
       score: leaders.observations === data.member ? data.observations + 20 : data.observations / 8,
-      reason: `${data.member} brings the steady field-note heartbeat: ${data.observations} observations, carefully stacked into a very Rain or Shine archive.`,
+      reason: `${data.member} brings the steady field-note heartbeat: ${data.observations} observations, with ${data.signatureBird} tucked into the archive like a well-earned field mark.`,
     },
     {
       type: "Life List Cartographer",
       score: leaders.uniqueSpecies === data.member ? data.uniqueSpecies + 18 : data.uniqueSpecies / 3,
-      reason: `${data.member} is mapping the team story through breadth: ${data.uniqueSpecies} Life Listers and ${data.places} places with pins on the trail.`,
+      reason: `${data.member} is mapping the team story through breadth: ${data.uniqueSpecies} Life Listers, ${data.places} places, and ${data.signatureBird} as one bright pin on the trail.`,
     },
     {
       type: "Canopy Whisperer",
       score: leaders.warblers === data.member ? data.warblers + 14 : data.warblers,
-      reason: `${data.member} has the leafy patience badge: ${data.warblers} warbler-and-friends observations hiding in the branches.`,
+      reason: `${data.member} has the leafy patience badge: ${data.warblers} warbler-and-friends observations, with ${data.warblerBird} hiding in the branches.`,
     },
     {
       type: "Marsh Magnet",
       score: leaders.waterBirds === data.member ? data.waterBirds + 12 : data.waterBirds,
-      reason: `${data.member} keeps finding action along water, mud, reeds, and shorelines with ${data.waterBirds} water-bird observations in the mix.`,
+      reason: `${data.member} keeps finding action along water, mud, reeds, and shorelines, with ${data.waterBird} giving the badge its wetland flavor.`,
     },
     {
       type: "Sky Scanner",
       score: leaders.raptors === data.member ? data.raptors + 10 : data.raptors,
-      reason: `${data.member} has upward-glance energy, with ${data.raptors} raptor sightings giving the list a little talon and thermals.`,
+      reason: `${data.member} has upward-glance energy, with ${data.raptorBird} giving the list a little talon and thermals.`,
     },
   ].sort((a, b) => b.score - a.score);
 }
@@ -481,6 +489,10 @@ function getMetricLeader(metrics, metricName) {
 
 function countSpeciesMatches(observationsToCount, pattern) {
   return observationsToCount.filter((obs) => pattern.test(obs.species)).length;
+}
+
+function findSpeciesNameMatch(observationsToSearch, pattern) {
+  return observationsToSearch.find((obs) => pattern.test(obs.species))?.species || "";
 }
 
 function calculateFallbackBirderType(member) {
