@@ -101,6 +101,11 @@
             <div id="birdMap" aria-label="Map of uploaded observation locations"></div>
             <p id="mapEmpty" class="empty-state">Upload lists with latitude and longitude to paint the map.</p>
           </div>
+          <div class="map-legend" aria-label="Map marker legend">
+            <span><i class="legend-dot legend-dot--matt"></i>Matt</span>
+            <span><i class="legend-dot legend-dot--jeff"></i>Jeff</span>
+            <span><i class="legend-dot legend-dot--alex"></i>Alex</span>
+          </div>
         </div>
 
         <div class="panel">
@@ -172,6 +177,29 @@
         <div id="profileTrophyCase" class="profile-grid"></div>
       </section>
 
+      <section class="team-species-section" aria-labelledby="teamSpeciesTitle">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Team life list</p>
+            <h2 id="teamSpeciesTitle">Team Species</h2>
+          </div>
+        </div>
+        <div class="table-wrap team-species-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Bird</th>
+                <th><span class="member-heading member-heading--alex">Alex</span></th>
+                <th><span class="member-heading member-heading--jeff">Jeff</span></th>
+                <th><span class="member-heading member-heading--matt">Matt</span></th>
+              </tr>
+            </thead>
+            <tbody id="teamSpeciesTable"></tbody>
+          </table>
+          <p id="teamSpeciesEmpty" class="empty-state">Upload life lists to build the team species table.</p>
+        </div>
+      </section>
+
       <section class="list-section" aria-labelledby="listTitle">
         <div class="panel__header">
           <div>
@@ -188,6 +216,7 @@
                 <th>Seen by</th>
                 <th>Date</th>
                 <th>Place</th>
+                <th>Total</th>
               </tr>
             </thead>
             <tbody id="speciesTable"></tbody>

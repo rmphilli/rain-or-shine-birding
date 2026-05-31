@@ -2,8 +2,19 @@ const STORAGE_KEY = "rainOrShineBirdingData";
 const BADGE_STORAGE_KEY = "rainOrShineMilestoneBadges";
 const SESSION_STORAGE_KEY = "rainOrShineSupabaseSession";
 const defaultMembers = ["Jeff", "Alex", "Matt"];
+const teamSpeciesMembers = ["Alex", "Jeff", "Matt"];
 const emailMemberMap = {
   "rmphilli@gmail.com": "Matt",
+};
+const memberColors = {
+  Matt: "#c75b57",
+  Jeff: "#3f7f99",
+  Alex: "#6f8f4e",
+};
+const memberColorClasses = {
+  Matt: "matt",
+  Jeff: "jeff",
+  Alex: "alex",
 };
 
 let observations = loadObservations();
@@ -15,6 +26,8 @@ let isRemoteReady = false;
 const fileInputs = document.querySelectorAll(".file-input");
 const speciesTable = document.querySelector("#speciesTable");
 const tableEmpty = document.querySelector("#tableEmpty");
+const teamSpeciesTable = document.querySelector("#teamSpeciesTable");
+const teamSpeciesEmpty = document.querySelector("#teamSpeciesEmpty");
 const mapEmpty = document.querySelector("#mapEmpty");
 const mapContainer = document.querySelector("#birdMap");
 const memberFilter = document.querySelector("#memberFilter");
@@ -53,6 +66,19 @@ const aliases = {
   checklist: ["submissionid", "submission id", "checklistid", "checklist id", "samplingeventidentifier"],
 };
 
+function normalizeMemberName(member) {
+  const normalized = String(member || "").trim().toLowerCase();
+  return defaultMembers.find((name) => name.toLowerCase() === normalized) || String(member || "").trim();
+}
+
+function getMemberColor(member) {
+  return memberColors[normalizeMemberName(member)] || "#506f55";
+}
+
+function getMemberColorClass(member) {
+  return memberColorClasses[normalizeMemberName(member)] || "default";
+}
+
 fileInputs.forEach((input) => {
   input.addEventListener("change", async (event) => {
     const file = event.target.files[0];
@@ -60,10 +86,10 @@ fileInputs.forEach((input) => {
 
     const text = await file.text();
     const rows = parseCsv(text);
-    const member = event.target.dataset.member;
+    const member = normalizeMemberName(event.target.dataset.member);
     const imported = normalizeRows(rows, member, file.name);
 
-    observations = observations.filter((item) => item.member !== member).concat(imported);
+    observations = observations.filter((item) => normalizeMemberName(item.member) !== member).concat(imported);
     await saveImport(member, file.name, imported);
     event.target.closest(".upload-card").querySelector(".upload-card__hint").textContent = `${imported.length} rows`;
     render();
@@ -141,14 +167,15 @@ function parseCsv(text) {
 }
 
 function normalizeRows(rows, member, sourceName) {
+  const cleanMember = normalizeMemberName(member);
   return rows
     .map((row, index) => {
       const species = pick(row, aliases.species);
       if (!species) return null;
 
       return {
-        id: `${member}-${sourceName}-${index}-${species}`,
-        member,
+        id: `${cleanMember}-${sourceName}-${index}-${species}`,
+        member: cleanMember,
         species: titleCase(species),
         scientific: pick(row, aliases.scientific),
         date: cleanDate(pick(row, aliases.date)),
@@ -203,6 +230,7 @@ function render() {
   renderMemberBreakdown();
   renderBirderTypeBadges();
   renderProfileTrophyCase();
+  renderTeamSpeciesTable();
   renderSpeciesTable();
   renderMap();
 }
@@ -210,16 +238,18 @@ function render() {
 function speciesGroups() {
   const groups = new Map();
   observations.forEach((obs) => {
-    if (!groups.has(obs.species)) {
-      groups.set(obs.species, {
+    const speciesId = getSpeciesId(obs);
+    if (!groups.has(speciesId)) {
+      groups.set(speciesId, {
         species: obs.species,
+        scientific: obs.scientific || "",
         members: new Set(),
         dates: [],
         locations: new Set(),
       });
     }
-    const group = groups.get(obs.species);
-    group.members.add(obs.member);
+    const group = groups.get(speciesId);
+    group.members.add(normalizeMemberName(obs.member));
     if (obs.date) group.dates.push(obs.date);
     if (obs.location) group.locations.add(obs.location);
   });
@@ -239,7 +269,7 @@ function renderStats() {
 }
 
 function renderMemberFilter() {
-  const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
+  const members = [...new Set(defaultMembers.concat(observations.map((obs) => normalizeMemberName(obs.member))))];
   const current = memberFilter.value;
   memberFilter.innerHTML = '<option value="all">Everyone</option>';
   members.forEach((member) => {
@@ -252,16 +282,21 @@ function renderMemberFilter() {
 }
 
 function renderMemberBreakdown() {
-  const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
+  const members = [...new Set(defaultMembers.concat(observations.map((obs) => normalizeMemberName(obs.member))))];
   memberBreakdown.innerHTML = "";
 
   members.forEach((member) => {
-    const memberObservations = observations.filter((obs) => obs.member === member);
-    const memberSpecies = new Set(memberObservations.map((obs) => obs.species));
-    const mapped = memberObservations.filter((obs) => obs.latitude !== null && obs.longitude !== null).length;
+    const memberObservations = observations.filter((obs) => normalizeMemberName(obs.member) === member);
+    const memberSpecies = new Set(memberObservations.map((obs) => getSpeciesId(obs)));
     const card = document.createElement("article");
     card.className = "member-card";
-    card.innerHTML = `<strong>${member}</strong><span>${memberSpecies.size} species | ${memberObservations.length} observations | ${mapped} mapped</span>`;
+    card.innerHTML = `
+      <strong>${member}</strong>
+      <span class="member-card__stats">
+        <span>${memberSpecies.size} life listers</span>
+        <span>${memberObservations.length} observations</span>
+      </span>
+    `;
     memberBreakdown.appendChild(card);
   });
 }
@@ -284,8 +319,8 @@ function renderWhimsyWatch() {
       meta: "Updated this visit | Backyard anomalies",
     },
     {
-      title: "Bigfoot’s Likely Life Bird",
-      text: "Based on habitat preference and a healthy respect for dense cover, today’s speculative nominee is Pileated Woodpecker. Large, loud, elusive, and absolutely on brand.",
+      title: "Bigfoot's Likely Life Bird",
+      text: "Based on habitat preference and a healthy respect for dense cover, today's speculative nominee is Pileated Woodpecker. Large, loud, elusive, and absolutely on brand.",
       meta: "Updated this visit | Cryptid ornithology",
     },
   ];
@@ -297,7 +332,7 @@ function renderWhimsyWatch() {
 }
 
 function renderBirderTypeBadges() {
-  const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
+  const members = [...new Set(defaultMembers.concat(observations.map((obs) => normalizeMemberName(obs.member))))];
   birderTypeBadges.innerHTML = "";
 
   members.forEach((member) => {
@@ -320,7 +355,7 @@ function renderBirderTypeBadges() {
 }
 
 function calculateBirderType(member) {
-  const memberObservations = observations.filter((obs) => obs.member === member);
+  const memberObservations = observations.filter((obs) => normalizeMemberName(obs.member) === member);
   const uniqueSpecies = getUniqueLifeListSpecies(member);
   if (!memberObservations.length) {
     return {
@@ -375,7 +410,7 @@ function calculateBirderType(member) {
 }
 
 function renderProfileTrophyCase() {
-  const members = [...new Set(defaultMembers.concat(observations.map((obs) => obs.member)))];
+  const members = [...new Set(defaultMembers.concat(observations.map((obs) => normalizeMemberName(obs.member))))];
   profileTrophyCase.innerHTML = "";
   userMilestoneBadges = userMilestoneBadges.filter((badge) => badge.badge_kind === "species");
 
@@ -716,7 +751,7 @@ function calculateMilestoneBirdBadges(userId) {
 function getUniqueLifeListSpecies(member) {
   const firstBySpecies = new Map();
   observations
-    .filter((obs) => obs.member === member)
+    .filter((obs) => normalizeMemberName(obs.member) === normalizeMemberName(member))
     .forEach((obs) => {
       const speciesId = getSpeciesId(obs);
       const current = firstBySpecies.get(speciesId);
@@ -810,7 +845,7 @@ function getUserId(member) {
 }
 
 function getMemberByUserId(userId) {
-  return defaultMembers.concat(observations.map((obs) => obs.member)).find((member) => getUserId(member) === userId);
+  return defaultMembers.concat(observations.map((obs) => normalizeMemberName(obs.member))).find((member) => getUserId(member) === userId);
 }
 
 function ordinal(value) {
@@ -838,9 +873,30 @@ function capitalize(value) {
   return value ? value[0].toUpperCase() + value.slice(1) : value;
 }
 
+function renderTeamSpeciesTable() {
+  const groups = speciesGroups();
+  teamSpeciesTable.innerHTML = "";
+  teamSpeciesEmpty.style.display = groups.length ? "none" : "block";
+
+  groups.forEach((group) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><strong>${escapeHtml(group.species)}</strong></td>
+      ${teamSpeciesMembers
+        .map((member) => {
+          const seen = group.members.has(member);
+          const className = getMemberColorClass(member);
+          return `<td>${seen ? `<span class="seen-dot seen-dot--${className}" title="${escapeHtml(member)} has seen this bird"></span>` : ""}</td>`;
+        })
+        .join("")}
+    `;
+    teamSpeciesTable.appendChild(row);
+  });
+}
+
 function renderSpeciesTable() {
   const query = speciesSearch.value.trim().toLowerCase();
-  const entries = observations
+  const entries = aggregateObservationLedger()
     .filter((obs) => {
       const haystack = `${obs.species} ${obs.member} ${obs.location || ""} ${obs.date || ""}`.toLowerCase();
       return haystack.includes(query);
@@ -857,9 +913,53 @@ function renderSpeciesTable() {
       <td><div class="pill-list"><span class="pill">${escapeHtml(obs.member)}</span></div></td>
       <td>${escapeHtml(obs.date ? formatDate(obs.date) : "Unknown")}</td>
       <td>${escapeHtml(obs.location || "Unknown")}</td>
+      <td>${escapeHtml(obs.totalCount)}</td>
     `;
     speciesTable.appendChild(row);
   });
+}
+
+function aggregateObservationLedger() {
+  const grouped = new Map();
+
+  observations.forEach((obs) => {
+    const member = normalizeMemberName(obs.member);
+    const key = [member, getSpeciesId(obs), obs.date || "", normalizeKey(obs.location || "")].join("||");
+    const existing = grouped.get(key);
+    const countInfo = parseObservationCount(obs.count);
+
+    if (!existing) {
+      grouped.set(key, {
+        ...obs,
+        member,
+        numericTotal: countInfo.numeric,
+        hasUnknownCount: countInfo.unknown,
+      });
+      return;
+    }
+
+    existing.numericTotal += countInfo.numeric;
+    existing.hasUnknownCount = existing.hasUnknownCount || countInfo.unknown;
+  });
+
+  return [...grouped.values()].map((entry) => ({
+    ...entry,
+    totalCount: formatObservationTotal(entry.numericTotal, entry.hasUnknownCount),
+  }));
+}
+
+function parseObservationCount(value) {
+  const cleaned = String(value || "").trim();
+  if (!cleaned) return { numeric: 1, unknown: false };
+  if (cleaned.toUpperCase() === "X") return { numeric: 0, unknown: true };
+  const parsed = Number.parseInt(cleaned.replace(/,/g, ""), 10);
+  return Number.isFinite(parsed) ? { numeric: parsed, unknown: false } : { numeric: 0, unknown: true };
+}
+
+function formatObservationTotal(total, hasUnknownCount) {
+  if (total && hasUnknownCount) return `${total}+`;
+  if (total) return String(total);
+  return hasUnknownCount ? "X" : "1";
 }
 
 function compareObservationNewestFirst(a, b) {
@@ -985,7 +1085,7 @@ function hasSupabaseConfig() {
 function toRemoteObservation(obs, importId) {
   return {
     id: obs.id,
-    member_name: obs.member,
+    member_name: normalizeMemberName(obs.member),
     species_common_name: obs.species,
     species_scientific_name: obs.scientific || null,
     date_seen: obs.date || null,
@@ -1002,7 +1102,7 @@ function toRemoteObservation(obs, importId) {
 function fromRemoteObservation(row) {
   return {
     id: row.id,
-    member: row.member_name,
+    member: normalizeMemberName(row.member_name),
     species: row.species_common_name,
     scientific: row.species_scientific_name || "",
     date: row.date_seen || "",
@@ -1058,7 +1158,7 @@ function fromRemoteBadge(row) {
 function renderMap() {
   const selected = memberFilter.value;
   const points = observations
-    .filter((obs) => selected === "all" || obs.member === selected)
+    .filter((obs) => selected === "all" || normalizeMemberName(obs.member) === selected)
     .filter((obs) => obs.latitude !== null && obs.longitude !== null);
 
   mapEmpty.style.display = points.length ? "none" : "grid";
@@ -1085,16 +1185,17 @@ function renderMap() {
 
   const bounds = [];
   points.forEach((point) => {
+    const member = normalizeMemberName(point.member);
+    const markerColor = getMemberColor(member);
     const marker = L.circleMarker([point.latitude, point.longitude], {
       radius: 7,
       color: "#fffdf5",
       weight: 2,
-      fillColor: "#c75b57",
+      fillColor: markerColor,
       fillOpacity: 0.88,
     }).addTo(birdMapLayer);
     marker.bindPopup(`
-      <strong>${escapeHtml(point.species)}</strong><br>
-      ${escapeHtml(point.member)}<br>
+      <strong>${escapeHtml(member)}</strong><br>
       ${escapeHtml(point.date ? formatDate(point.date) : "Unknown date")}<br>
       ${escapeHtml(point.location || "Unknown place")}
     `);
