@@ -293,8 +293,8 @@ function renderMemberBreakdown() {
     card.innerHTML = `
       <strong>${member}</strong>
       <span class="member-card__stats">
-        <span>${memberSpecies.size} life listers</span>
-        <span>${memberObservations.length} observations</span>
+        <span>${memberSpecies.size} Life Listers</span>
+        <span>${memberObservations.length} Observations</span>
       </span>
     `;
     memberBreakdown.appendChild(card);
@@ -333,18 +333,20 @@ function renderWhimsyWatch() {
 
 function renderBirderTypeBadges() {
   const members = [...new Set(defaultMembers.concat(observations.map((obs) => normalizeMemberName(obs.member))))];
+  const profiles = calculateBirderTypeProfiles(members);
   birderTypeBadges.innerHTML = "";
 
   members.forEach((member) => {
-    const profile = calculateBirderType(member);
+    const profile = profiles.get(member) || calculateFallbackBirderType(member);
+    const colorClass = getMemberColorClass(member);
     const card = document.createElement("article");
-    card.className = "type-badge";
+    card.className = `type-badge type-badge--${colorClass}`;
     card.innerHTML = `
       <div class="type-badge__seal" aria-hidden="true">
-        <div class="type-badge__inner">
+        <div class="type-badge__inner type-badge__inner--${colorClass}">
+          <span class="type-badge__face"></span>
           <span class="type-badge__logo">RS</span>
           <span class="type-badge__name">${escapeHtml(member)}</span>
-          <span class="type-badge__type">${escapeHtml(profile.type)}</span>
         </div>
       </div>
       <h3>${escapeHtml(profile.type)}</h3>
@@ -354,7 +356,134 @@ function renderBirderTypeBadges() {
   });
 }
 
-function calculateBirderType(member) {
+function calculateBirderTypeProfiles(members) {
+  const normalizedMembers = members.map(normalizeMemberName);
+  const speciesSeenBy = new Map();
+  observations.forEach((obs) => {
+    const speciesId = getSpeciesId(obs);
+    if (!speciesSeenBy.has(speciesId)) speciesSeenBy.set(speciesId, new Set());
+    speciesSeenBy.get(speciesId).add(normalizeMemberName(obs.member));
+  });
+
+  const metrics = new Map(
+    normalizedMembers.map((member) => {
+      const memberObservations = observations.filter((obs) => normalizeMemberName(obs.member) === member);
+      const uniqueSpecies = getUniqueLifeListSpecies(member);
+      const mapped = memberObservations.filter((obs) => obs.latitude !== null && obs.longitude !== null);
+      const places = new Set(mapped.map((obs) => obs.location || `${obs.latitude.toFixed(2)},${obs.longitude.toFixed(2)}`));
+      const soloSpecies = uniqueSpecies.filter((obs) => speciesSeenBy.get(getSpeciesId(obs))?.size === 1);
+      const dates = memberObservations.map((obs) => obs.date).filter(Boolean).sort();
+      const latitudes = mapped.map((obs) => obs.latitude);
+      const longitudes = mapped.map((obs) => obs.longitude);
+      const travelSpan =
+        latitudes.length && longitudes.length
+          ? Math.abs(Math.max(...latitudes) - Math.min(...latitudes)) + Math.abs(Math.max(...longitudes) - Math.min(...longitudes))
+          : 0;
+
+      return [
+        member,
+        {
+          member,
+          observations: memberObservations.length,
+          uniqueSpecies: uniqueSpecies.length,
+          places: places.size,
+          soloSpecies: soloSpecies.length,
+          latestDate: dates[dates.length - 1] || "",
+          travelSpan,
+          warblers: countSpeciesMatches(memberObservations, /warbler|vireo|kinglet|gnatcatcher/i),
+          raptors: countSpeciesMatches(memberObservations, /hawk|eagle|falcon|kite|osprey|owl|vulture|harrier/i),
+          waterBirds: countSpeciesMatches(memberObservations, /duck|goose|swan|heron|egret|rail|gull|tern|sandpiper|plover|pelican|cormorant|loon|grebe/i),
+        },
+      ];
+    })
+  );
+
+  const leaders = {
+    observations: getMetricLeader(metrics, "observations"),
+    uniqueSpecies: getMetricLeader(metrics, "uniqueSpecies"),
+    places: getMetricLeader(metrics, "places"),
+    soloSpecies: getMetricLeader(metrics, "soloSpecies"),
+    travelSpan: getMetricLeader(metrics, "travelSpan"),
+    warblers: getMetricLeader(metrics, "warblers"),
+    raptors: getMetricLeader(metrics, "raptors"),
+    waterBirds: getMetricLeader(metrics, "waterBirds"),
+  };
+
+  const profiles = new Map();
+  const usedTypes = new Set();
+  normalizedMembers.forEach((member) => {
+    const data = metrics.get(member);
+    if (!data || !data.observations) {
+      profiles.set(member, calculateFallbackBirderType(member));
+      return;
+    }
+
+    const candidates = getBirderTypeCandidates(data, leaders).filter((candidate) => candidate.score > 0);
+    const picked = candidates.find((candidate) => !usedTypes.has(candidate.type)) || candidates[0] || calculateFallbackBirderType(member);
+    usedTypes.add(picked.type);
+    profiles.set(member, picked);
+  });
+
+  return profiles;
+}
+
+function getBirderTypeCandidates(data, leaders) {
+  return [
+    {
+      type: "Range Roamer",
+      score: leaders.travelSpan === data.member ? data.travelSpan + 30 : data.travelSpan,
+      reason: `${data.member} has the widest wandering footprint, turning scattered stops and road-trip edges into ${data.uniqueSpecies} Life Listers across ${data.places} mapped places.`,
+    },
+    {
+      type: "Only-Bird Oracle",
+      score: leaders.soloSpecies === data.member ? data.soloSpecies + 25 : data.soloSpecies,
+      reason: `${data.member} is carrying ${data.soloSpecies} team-only birds, the kind of quiet finds that make the shared list feel deliciously personal.`,
+    },
+    {
+      type: "Checklist Engine",
+      score: leaders.observations === data.member ? data.observations + 20 : data.observations / 8,
+      reason: `${data.member} brings the steady field-note heartbeat: ${data.observations} observations, carefully stacked into a very Rain or Shine archive.`,
+    },
+    {
+      type: "Life List Cartographer",
+      score: leaders.uniqueSpecies === data.member ? data.uniqueSpecies + 18 : data.uniqueSpecies / 3,
+      reason: `${data.member} is mapping the team story through breadth: ${data.uniqueSpecies} Life Listers and ${data.places} places with pins on the trail.`,
+    },
+    {
+      type: "Canopy Whisperer",
+      score: leaders.warblers === data.member ? data.warblers + 14 : data.warblers,
+      reason: `${data.member} has the leafy patience badge: ${data.warblers} warbler-and-friends observations hiding in the branches.`,
+    },
+    {
+      type: "Marsh Magnet",
+      score: leaders.waterBirds === data.member ? data.waterBirds + 12 : data.waterBirds,
+      reason: `${data.member} keeps finding action along water, mud, reeds, and shorelines with ${data.waterBirds} water-bird observations in the mix.`,
+    },
+    {
+      type: "Sky Scanner",
+      score: leaders.raptors === data.member ? data.raptors + 10 : data.raptors,
+      reason: `${data.member} has upward-glance energy, with ${data.raptors} raptor sightings giving the list a little talon and thermals.`,
+    },
+  ].sort((a, b) => b.score - a.score);
+}
+
+function getMetricLeader(metrics, metricName) {
+  let leader = "";
+  let best = -1;
+  metrics.forEach((data, member) => {
+    if (data[metricName] > best) {
+      best = data[metricName];
+      leader = member;
+    }
+  });
+  return best > 0 ? leader : "";
+}
+
+function countSpeciesMatches(observationsToCount, pattern) {
+  return observationsToCount.filter((obs) => pattern.test(obs.species)).length;
+}
+
+function calculateFallbackBirderType(member) {
   const memberObservations = observations.filter((obs) => normalizeMemberName(obs.member) === member);
   const uniqueSpecies = getUniqueLifeListSpecies(member);
   if (!memberObservations.length) {

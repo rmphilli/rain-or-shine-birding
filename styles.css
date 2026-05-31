@@ -40,21 +40,71 @@ select {
 }
 
 .hero__image,
-.hero__shade {
+.hero__shade,
+.hero__motion {
   position: absolute;
   inset: 0;
 }
 
 .hero__image {
+  z-index: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
 .hero__shade {
+  z-index: 1;
   background:
     linear-gradient(90deg, rgba(251, 250, 244, 0.95) 0%, rgba(251, 250, 244, 0.82) 38%, rgba(251, 250, 244, 0.1) 72%),
     linear-gradient(180deg, rgba(251, 250, 244, 0.12), rgba(251, 250, 244, 0.78) 100%);
+}
+
+.hero__motion {
+  z-index: 2;
+  pointer-events: none;
+}
+
+.hero__beam {
+  position: absolute;
+  top: 15%;
+  left: 47.8%;
+  width: clamp(46px, 8vw, 110px);
+  height: clamp(90px, 17vw, 190px);
+  background: linear-gradient(180deg, rgba(143, 226, 173, 0.3), rgba(243, 201, 93, 0));
+  clip-path: polygon(45% 0, 55% 0, 100% 100%, 0 100%);
+  filter: blur(2px);
+  opacity: 0;
+  transform-origin: 50% 0;
+  animation: saucerBeam 8s ease-in-out infinite;
+}
+
+.hero__bird {
+  position: absolute;
+  width: 20px;
+  height: 10px;
+  border-top: 3px solid rgba(34, 49, 45, 0.58);
+  border-radius: 50%;
+  font-size: 0;
+  opacity: 0.48;
+  animation: clayBirdDrift 11s ease-in-out infinite;
+}
+
+.hero__bird--one {
+  top: 13%;
+  left: 30%;
+}
+
+.hero__bird--two {
+  top: 22%;
+  left: 26%;
+  animation-delay: -3s;
+}
+
+.hero__bird--three {
+  top: 19%;
+  right: 13%;
+  animation-delay: -6s;
 }
 
 .topbar {
@@ -62,7 +112,7 @@ select {
   top: 18px;
   left: clamp(20px, 5vw, 72px);
   right: clamp(20px, 5vw, 72px);
-  z-index: 2;
+  z-index: 4;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -106,7 +156,7 @@ select {
 
 .hero__copy {
   position: relative;
-  z-index: 1;
+  z-index: 3;
   width: min(640px, 100%);
 }
 
@@ -462,7 +512,20 @@ input[type="search"] {
 .member-card__stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 0;
+}
+
+.member-card__stats span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding-right: 12px;
+  font-weight: 750;
+}
+
+.member-card__stats span + span {
+  border-left: 1px solid rgba(80, 111, 85, 0.22);
+  padding-left: 12px;
 }
 
 .whimsy-card {
@@ -679,27 +742,71 @@ textarea {
 }
 
 .type-badge__inner {
+  position: relative;
   display: grid;
   place-items: center;
   gap: 2px;
   width: 62px;
   height: 62px;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--ink);
   color: #fffdf5;
   padding: 7px;
   box-shadow: inset -5px -6px 0 rgba(255, 255, 255, 0.08);
 }
 
+.type-badge__face {
+  position: absolute;
+  inset: 0;
+  background-image: url("./assets/clay-birding-hero.png");
+  background-repeat: no-repeat;
+  background-size: 430% auto;
+  filter: saturate(1.05) contrast(1.02);
+}
+
+.type-badge__inner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 34% 24%, rgba(255, 255, 255, 0.26), transparent 26%),
+    linear-gradient(180deg, rgba(34, 49, 45, 0), rgba(34, 49, 45, 0.24));
+  box-shadow: inset -6px -8px 0 rgba(34, 49, 45, 0.16);
+}
+
+.type-badge__inner--matt .type-badge__face {
+  background-position: 55% 38%;
+}
+
+.type-badge__inner--jeff .type-badge__face {
+  background-position: 70% 34%;
+}
+
+.type-badge__inner--alex .type-badge__face {
+  background-position: 86% 31%;
+}
+
 .type-badge__logo {
+  position: relative;
+  z-index: 1;
+  align-self: start;
   color: var(--sun);
   font-family: Georgia, "Times New Roman", serif;
-  font-size: 1rem;
+  font-size: 0.72rem;
   font-weight: 900;
+  text-shadow: 0 1px 2px rgba(34, 49, 45, 0.65);
 }
 
 .type-badge__name {
-  font-size: 0.58rem;
+  position: relative;
+  z-index: 1;
+  align-self: end;
+  border-radius: 999px;
+  background: rgba(34, 49, 45, 0.72);
+  padding: 2px 6px;
+  font-size: 0.52rem;
   font-weight: 900;
   text-transform: uppercase;
 }
@@ -717,6 +824,37 @@ textarea {
   margin-bottom: 0;
   color: var(--muted);
   line-height: 1.45;
+}
+
+@keyframes saucerBeam {
+  0%,
+  52%,
+  100% {
+    opacity: 0;
+    transform: scaleY(0.62) rotate(-2deg);
+  }
+  62%,
+  78% {
+    opacity: 0.68;
+    transform: scaleY(1) rotate(1deg);
+  }
+}
+
+@keyframes clayBirdDrift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(-8deg);
+  }
+  50% {
+    transform: translate3d(18px, -8px, 0) rotate(9deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero__beam,
+  .hero__bird {
+    animation: none;
+  }
 }
 
 .profile-card {
