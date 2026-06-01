@@ -68,6 +68,10 @@
       </section>
 
       <section class="stats" aria-label="Team stats">
+        <article class="stat-card--team-score">
+          <span id="teamLifeListerScore">0</span>
+          <p>Team Life Lister Score</p>
+        </article>
         <article>
           <span id="speciesCount">0</span>
           <p>Team species</p>
@@ -83,6 +87,48 @@
         <article>
           <span id="sharedCount">0</span>
           <p>Seen by all three</p>
+        </article>
+      </section>
+
+      <section class="ambient-preserve" aria-labelledby="ambientTitle">
+        <article class="ambient-card">
+          <div>
+            <p class="eyebrow">Ambient birding mode</p>
+            <h2 id="ambientTitle">Set the field mood</h2>
+            <p class="section-note">Tiny atmosphere for review nights: a soft theme, optional birdsong, and a quiet migration trace.</p>
+          </div>
+          <div class="ambient-controls">
+            <button id="ambientToggle" class="ghost-button" type="button" aria-pressed="false">Ambient off</button>
+            <button id="birdSoundToggle" class="ghost-button" type="button" aria-pressed="false">Bird sounds off</button>
+            <select id="ambientTheme" aria-label="Ambient theme">
+              <option value="daybreak">Daybreak</option>
+              <option value="golden-hour">Golden hour</option>
+              <option value="moonlit">Moonlit</option>
+            </select>
+          </div>
+        </article>
+        <article class="preserve-card" aria-labelledby="preserveTitle">
+          <div class="panel__header">
+            <div>
+              <p class="eyebrow">Rain or Shine Preserve</p>
+              <h2 id="preserveTitle">A living team ecosystem</h2>
+            </div>
+            <span id="preserveUnlocks" class="status-pill">0 habitats unlocked</span>
+          </div>
+          <div id="preserveCanvas" class="preserve-canvas" aria-hidden="true">
+            <span class="preserve-sun"></span>
+            <span class="migration-path migration-path--one"></span>
+            <span class="migration-path migration-path--two"></span>
+            <span class="preserve-layer preserve-layer--meadow"></span>
+            <span class="preserve-layer preserve-layer--wetland"></span>
+            <span class="preserve-layer preserve-layer--woodland"></span>
+            <span class="preserve-layer preserve-layer--canopy"></span>
+            <span class="preserve-bird preserve-bird--one"></span>
+            <span class="preserve-bird preserve-bird--two"></span>
+            <span class="preserve-feather preserve-feather--one"></span>
+            <span class="preserve-feather preserve-feather--two"></span>
+          </div>
+          <p id="preserveSummary" class="section-note">Upload life lists to begin filling the preserve.</p>
         </article>
       </section>
 
@@ -105,6 +151,8 @@
             <span><i class="legend-dot legend-dot--matt"></i>Matt</span>
             <span><i class="legend-dot legend-dot--jeff"></i>Jeff</span>
             <span><i class="legend-dot legend-dot--alex"></i>Alex</span>
+            <span><i class="legend-dot legend-dot--shared-two"></i>2 birders</span>
+            <span><i class="legend-dot legend-dot--shared-three"></i>Team outing</span>
           </div>
         </div>
 
@@ -192,11 +240,38 @@
                 <th><span class="member-heading member-heading--alex">Alex</span></th>
                 <th><span class="member-heading member-heading--jeff">Jeff</span></th>
                 <th><span class="member-heading member-heading--matt">Matt</span></th>
+                <th>Achievement</th>
               </tr>
             </thead>
             <tbody id="teamSpeciesTable"></tbody>
           </table>
           <p id="teamSpeciesEmpty" class="empty-state">Upload life lists to build the team species table.</p>
+        </div>
+      </section>
+
+      <section class="team-targets-section" aria-labelledby="teamTargetsTitle">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Team strategy</p>
+            <h2 id="teamTargetsTitle">Team Target Species</h2>
+          </div>
+        </div>
+        <p class="section-note">
+          Birds below are already on the Rain or Shine radar, but not yet on all three life lists.
+        </p>
+        <div class="table-wrap team-targets-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Bird</th>
+                <th>Seen by</th>
+                <th>Still needed by</th>
+                <th>Target</th>
+              </tr>
+            </thead>
+            <tbody id="teamTargetsTable"></tbody>
+          </table>
+          <p id="teamTargetsEmpty" class="empty-state">Once a team list is uploaded, target species will appear here.</p>
         </div>
       </section>
 

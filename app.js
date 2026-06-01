@@ -1,6 +1,7 @@
 const STORAGE_KEY = "rainOrShineBirdingData";
 const BADGE_STORAGE_KEY = "rainOrShineMilestoneBadges";
 const SESSION_STORAGE_KEY = "rainOrShineSupabaseSession";
+const AMBIENT_STORAGE_KEY = "rainOrShineAmbientMode";
 const defaultMembers = ["Jeff", "Alex", "Matt"];
 const teamSpeciesMembers = ["Alex", "Jeff", "Matt"];
 const emailMemberMap = {
@@ -28,6 +29,8 @@ const speciesTable = document.querySelector("#speciesTable");
 const tableEmpty = document.querySelector("#tableEmpty");
 const teamSpeciesTable = document.querySelector("#teamSpeciesTable");
 const teamSpeciesEmpty = document.querySelector("#teamSpeciesEmpty");
+const teamTargetsTable = document.querySelector("#teamTargetsTable");
+const teamTargetsEmpty = document.querySelector("#teamTargetsEmpty");
 const mapEmpty = document.querySelector("#mapEmpty");
 const mapContainer = document.querySelector("#birdMap");
 const memberFilter = document.querySelector("#memberFilter");
@@ -50,10 +53,18 @@ const welcomeMessage = document.querySelector("#welcomeMessage");
 const whimsyTitle = document.querySelector("#whimsyTitle");
 const whimsyText = document.querySelector("#whimsyText");
 const whimsyMeta = document.querySelector("#whimsyMeta");
+const ambientToggle = document.querySelector("#ambientToggle");
+const birdSoundToggle = document.querySelector("#birdSoundToggle");
+const ambientTheme = document.querySelector("#ambientTheme");
+const preserveCanvas = document.querySelector("#preserveCanvas");
+const preserveUnlocks = document.querySelector("#preserveUnlocks");
+const preserveSummary = document.querySelector("#preserveSummary");
 
 let attachedBirdImage = null;
 let birdMap = null;
 let birdMapLayer = null;
+let birdSoundTimer = null;
+let birdAudioContext = null;
 
 const aliases = {
   species: ["commonname", "common name", "species", "englishname", "english name"],
@@ -118,6 +129,7 @@ speciesSearch.addEventListener("input", renderSpeciesTable);
 window.addEventListener("resize", renderMap);
 setupChatAssistant();
 setupAuth();
+setupAmbientMode();
 initRemoteData();
 renderWhimsyWatch();
 
@@ -230,7 +242,9 @@ function render() {
   renderMemberBreakdown();
   renderBirderTypeBadges();
   renderProfileTrophyCase();
+  renderPreserve();
   renderTeamSpeciesTable();
+  renderTeamTargetsTable();
   renderSpeciesTable();
   renderMap();
 }
@@ -266,6 +280,11 @@ function renderStats() {
   document.querySelector("#observationCount").textContent = observations.length;
   document.querySelector("#locationCount").textContent = places.size;
   document.querySelector("#sharedCount").textContent = groups.filter((group) => group.members.size === 3).length;
+  document.querySelector("#teamLifeListerScore").textContent = getTeamLifeListerScore();
+}
+
+function getTeamLifeListerScore() {
+  return defaultMembers.reduce((total, member) => total + getUniqueLifeListSpecies(member).length, 0);
 }
 
 function renderMemberFilter() {
@@ -329,6 +348,130 @@ function renderWhimsyWatch() {
   whimsyTitle.textContent = dispatch.title;
   whimsyText.textContent = dispatch.text;
   whimsyMeta.textContent = dispatch.meta;
+}
+
+function setupAmbientMode() {
+  const saved = loadAmbientSettings();
+  ambientTheme.value = saved.theme;
+  applyAmbientTheme(saved.theme);
+  applyAmbientMode(saved.enabled);
+
+  ambientToggle.addEventListener("click", () => {
+    const enabled = !document.body.classList.contains("ambient-mode");
+    applyAmbientMode(enabled);
+    saveAmbientSettings();
+  });
+
+  birdSoundToggle.addEventListener("click", () => {
+    if (birdSoundTimer) {
+      stopBirdSounds();
+    } else {
+      applyAmbientMode(true);
+      startBirdSounds();
+    }
+    saveAmbientSettings();
+  });
+
+  ambientTheme.addEventListener("change", () => {
+    applyAmbientTheme(ambientTheme.value);
+    saveAmbientSettings();
+  });
+}
+
+function loadAmbientSettings() {
+  try {
+    return { theme: "daybreak", enabled: false, ...JSON.parse(localStorage.getItem(AMBIENT_STORAGE_KEY)) };
+  } catch {
+    return { theme: "daybreak", enabled: false };
+  }
+}
+
+function saveAmbientSettings() {
+  localStorage.setItem(
+    AMBIENT_STORAGE_KEY,
+    JSON.stringify({
+      enabled: document.body.classList.contains("ambient-mode"),
+      theme: ambientTheme.value,
+      sounds: Boolean(birdSoundTimer),
+    })
+  );
+}
+
+function applyAmbientMode(enabled) {
+  document.body.classList.toggle("ambient-mode", enabled);
+  ambientToggle.textContent = enabled ? "Ambient on" : "Ambient off";
+  ambientToggle.setAttribute("aria-pressed", String(enabled));
+  if (!enabled) stopBirdSounds();
+}
+
+function applyAmbientTheme(theme) {
+  document.body.classList.remove("theme-daybreak", "theme-golden-hour", "theme-moonlit");
+  document.body.classList.add(`theme-${theme}`);
+}
+
+function startBirdSounds() {
+  if (birdSoundTimer) return;
+  chirp();
+  birdSoundTimer = window.setInterval(chirp, 9000);
+  birdSoundToggle.textContent = "Bird sounds on";
+  birdSoundToggle.setAttribute("aria-pressed", "true");
+}
+
+function stopBirdSounds() {
+  if (birdSoundTimer) {
+    window.clearInterval(birdSoundTimer);
+    birdSoundTimer = null;
+  }
+  birdSoundToggle.textContent = "Bird sounds off";
+  birdSoundToggle.setAttribute("aria-pressed", "false");
+}
+
+function chirp() {
+  const AudioContext = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContext) return;
+  birdAudioContext = birdAudioContext || new AudioContext();
+  const now = birdAudioContext.currentTime;
+  playTone(now, 1260, 0.08, 0.018);
+  playTone(now + 0.12, 1580, 0.07, 0.014);
+  playTone(now + 0.23, 1120, 0.06, 0.012);
+}
+
+function playTone(start, frequency, duration, volume) {
+  const oscillator = birdAudioContext.createOscillator();
+  const gain = birdAudioContext.createGain();
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(frequency, start);
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+  oscillator.connect(gain).connect(birdAudioContext.destination);
+  oscillator.start(start);
+  oscillator.stop(start + duration + 0.02);
+}
+
+function renderPreserve() {
+  const groups = speciesGroups();
+  const teamComplete = groups.filter((group) => group.members.size === teamSpeciesMembers.length).length;
+  const stages = [
+    { className: "preserve-has-meadow", threshold: 1, label: "meadow" },
+    { className: "preserve-has-wetland", threshold: 35, label: "wetland" },
+    { className: "preserve-has-woodland", threshold: 90, label: "woodland" },
+    { className: "preserve-has-canopy", threshold: 160, label: "canopy" },
+  ];
+  const unlocked = stages.filter((stage) => groups.length >= stage.threshold);
+
+  stages.forEach((stage) => preserveCanvas.classList.toggle(stage.className, groups.length >= stage.threshold));
+  preserveCanvas.classList.toggle("preserve-has-team-complete", teamComplete > 0);
+  preserveCanvas.style.setProperty("--preserve-progress", `${Math.min(100, Math.max(8, groups.length / 2.2))}%`);
+  preserveUnlocks.textContent = `${unlocked.length} habitat${unlocked.length === 1 ? "" : "s"} unlocked`;
+
+  if (!groups.length) {
+    preserveSummary.textContent = "Upload life lists to begin filling the preserve.";
+    return;
+  }
+
+  const habitatText = unlocked.map((stage) => stage.label).join(", ");
+  preserveSummary.textContent = `${groups.length} team species have grown the preserve into ${habitatText}. ${teamComplete} Team Complete species add the little floating-feather celebration.`;
 }
 
 function renderBirderTypeBadges() {
@@ -1030,9 +1173,47 @@ function renderTeamSpeciesTable() {
           return `<td>${seen ? `<span class="seen-dot seen-dot--${className}" title="${escapeHtml(member)} has seen this bird"></span>` : ""}</td>`;
         })
         .join("")}
+      <td>${group.members.size === teamSpeciesMembers.length ? '<span class="team-complete-badge" title="All three birders have recorded this species">Team Complete</span>' : ""}</td>
     `;
     teamSpeciesTable.appendChild(row);
   });
+}
+
+function renderTeamTargetsTable() {
+  const targets = getTeamTargetSpecies();
+  teamTargetsTable.innerHTML = "";
+  teamTargetsEmpty.style.display = targets.length ? "none" : "block";
+
+  targets.forEach((target) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><strong>${escapeHtml(target.species)}</strong>${target.scientific ? `<br><span class="scientific">${escapeHtml(target.scientific)}</span>` : ""}</td>
+      <td>${formatMemberDotList(target.seenBy)}</td>
+      <td>${escapeHtml(target.neededBy.join(", "))}</td>
+      <td><span class="target-pill">${escapeHtml(target.neededBy.length === 1 ? "One away" : "Team target")}</span></td>
+    `;
+    teamTargetsTable.appendChild(row);
+  });
+}
+
+function getTeamTargetSpecies() {
+  return speciesGroups()
+    .map((group) => {
+      const seenBy = teamSpeciesMembers.filter((member) => group.members.has(member));
+      const neededBy = teamSpeciesMembers.filter((member) => !group.members.has(member));
+      return { ...group, seenBy, neededBy };
+    })
+    .filter((group) => group.seenBy.length > 0 && group.neededBy.length > 0)
+    .sort((a, b) => {
+      if (a.neededBy.length !== b.neededBy.length) return a.neededBy.length - b.neededBy.length;
+      return a.species.localeCompare(b.species);
+    });
+}
+
+function formatMemberDotList(members) {
+  return `<span class="dot-list">${members
+    .map((member) => `<span class="seen-dot seen-dot--${getMemberColorClass(member)}" title="${escapeHtml(member)}"></span>`)
+    .join("")}</span>`;
 }
 
 function renderSpeciesTable() {
@@ -1324,27 +1505,88 @@ function renderMap() {
   birdMapLayer = L.layerGroup().addTo(birdMap);
   if (!points.length) return;
 
+  const locationGroups = aggregateMapLocations(points);
   const bounds = [];
-  points.forEach((point) => {
-    const member = normalizeMemberName(point.member);
-    const markerColor = getMemberColor(member);
-    const marker = L.circleMarker([point.latitude, point.longitude], {
-      radius: 7,
-      color: "#fffdf5",
-      weight: 2,
-      fillColor: markerColor,
-      fillOpacity: 0.88,
+  locationGroups.forEach((location) => {
+    const markerStyle = getMapMarkerStyle(location.members);
+    const marker = L.circleMarker([location.latitude, location.longitude], {
+      radius: markerStyle.radius,
+      color: markerStyle.ring,
+      weight: markerStyle.weight,
+      fillColor: markerStyle.fill,
+      fillOpacity: markerStyle.opacity,
+      className: markerStyle.className,
     }).addTo(birdMapLayer);
     marker.bindPopup(`
-      <strong>${escapeHtml(member)}</strong><br>
-      ${escapeHtml(point.date ? formatDate(point.date) : "Unknown date")}<br>
-      ${escapeHtml(point.location || "Unknown place")}
+      <strong>${escapeHtml(location.label)}</strong><br>
+      ${escapeHtml(location.members.join(", "))}<br>
+      ${escapeHtml(location.location || "Unknown place")}<br>
+      ${escapeHtml(`${location.count} observation${location.count === 1 ? "" : "s"}`)}
     `);
-    bounds.push([point.latitude, point.longitude]);
+    bounds.push([location.latitude, location.longitude]);
   });
 
   birdMap.fitBounds(bounds, { padding: [26, 26], maxZoom: 12 });
   setTimeout(() => birdMap.invalidateSize(), 0);
+}
+
+function aggregateMapLocations(points) {
+  const groups = new Map();
+  points.forEach((point) => {
+    const key = `${point.latitude.toFixed(4)},${point.longitude.toFixed(4)}`;
+    if (!groups.has(key)) {
+      groups.set(key, {
+        latitude: point.latitude,
+        longitude: point.longitude,
+        location: point.location || "Unknown place",
+        members: new Set(),
+        count: 0,
+      });
+    }
+    const group = groups.get(key);
+    group.members.add(normalizeMemberName(point.member));
+    group.count += 1;
+  });
+
+  return [...groups.values()].map((group) => {
+    const members = teamSpeciesMembers.filter((member) => group.members.has(member));
+    return {
+      ...group,
+      members,
+      label: members.length === 3 ? "Team outing location" : members.length === 2 ? "Shared birding location" : members[0] || "Birding location",
+    };
+  });
+}
+
+function getMapMarkerStyle(members) {
+  if (members.length >= 3) {
+    return {
+      fill: "#d8a928",
+      ring: "#fff5bf",
+      radius: 10,
+      weight: 4,
+      opacity: 0.95,
+      className: "map-marker--shared-three",
+    };
+  }
+  if (members.length === 2) {
+    return {
+      fill: "#b9c0bf",
+      ring: "#f4f2e8",
+      radius: 9,
+      weight: 4,
+      opacity: 0.94,
+      className: "map-marker--shared-two",
+    };
+  }
+  return {
+    fill: getMemberColor(members[0]),
+    ring: "#fffdf5",
+    radius: 7,
+    weight: 2,
+    opacity: 0.88,
+    className: "",
+  };
 }
 
 function saveObservations() {
