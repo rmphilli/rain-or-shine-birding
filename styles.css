@@ -998,14 +998,35 @@ th {
 
 @media (max-width: 620px) {
   .hero {
-    min-height: 78vh;
-    padding-top: 110px;
+    display: block;
+    min-height: auto;
+    padding: 92px 16px 34px;
+    background: var(--paper);
+  }
+
+  .hero__image {
+    position: relative;
+    inset: auto;
+    display: block;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1717 / 916;
+    object-fit: contain;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
   }
 
   .hero__shade {
-    background:
-      linear-gradient(180deg, rgba(251, 250, 244, 0.96) 0%, rgba(251, 250, 244, 0.74) 56%, rgba(251, 250, 244, 0.12) 100%),
-      linear-gradient(90deg, rgba(251, 250, 244, 0.78), rgba(251, 250, 244, 0.24));
+    display: none;
+  }
+
+  .hero__copy {
+    margin-top: 22px;
+  }
+
+  h1 {
+    font-size: clamp(2.45rem, 12vw, 4rem);
+    line-height: 0.96;
   }
 
   .topbar {
