@@ -1,7 +1,6 @@
 const STORAGE_KEY = "rainOrShineBirdingData";
 const BADGE_STORAGE_KEY = "rainOrShineMilestoneBadges";
 const SESSION_STORAGE_KEY = "rainOrShineSupabaseSession";
-const AMBIENT_STORAGE_KEY = "rainOrShineAmbientMode";
 const defaultMembers = ["Jeff", "Alex", "Matt"];
 const teamSpeciesMembers = ["Alex", "Jeff", "Matt"];
 const emailMemberMap = {
@@ -53,18 +52,10 @@ const welcomeMessage = document.querySelector("#welcomeMessage");
 const whimsyTitle = document.querySelector("#whimsyTitle");
 const whimsyText = document.querySelector("#whimsyText");
 const whimsyMeta = document.querySelector("#whimsyMeta");
-const ambientToggle = document.querySelector("#ambientToggle");
-const birdSoundToggle = document.querySelector("#birdSoundToggle");
-const ambientTheme = document.querySelector("#ambientTheme");
-const preserveCanvas = document.querySelector("#preserveCanvas");
-const preserveUnlocks = document.querySelector("#preserveUnlocks");
-const preserveSummary = document.querySelector("#preserveSummary");
 
 let attachedBirdImage = null;
 let birdMap = null;
 let birdMapLayer = null;
-let birdSoundTimer = null;
-let birdAudioContext = null;
 
 const aliases = {
   species: ["commonname", "common name", "species", "englishname", "english name"],
@@ -129,7 +120,6 @@ speciesSearch.addEventListener("input", renderSpeciesTable);
 window.addEventListener("resize", renderMap);
 setupChatAssistant();
 setupAuth();
-setupAmbientMode();
 initRemoteData();
 renderWhimsyWatch();
 
@@ -242,7 +232,6 @@ function render() {
   renderMemberBreakdown();
   renderBirderTypeBadges();
   renderProfileTrophyCase();
-  renderPreserve();
   renderTeamSpeciesTable();
   renderTeamTargetsTable();
   renderSpeciesTable();
@@ -348,130 +337,6 @@ function renderWhimsyWatch() {
   whimsyTitle.textContent = dispatch.title;
   whimsyText.textContent = dispatch.text;
   whimsyMeta.textContent = dispatch.meta;
-}
-
-function setupAmbientMode() {
-  const saved = loadAmbientSettings();
-  ambientTheme.value = saved.theme;
-  applyAmbientTheme(saved.theme);
-  applyAmbientMode(saved.enabled);
-
-  ambientToggle.addEventListener("click", () => {
-    const enabled = !document.body.classList.contains("ambient-mode");
-    applyAmbientMode(enabled);
-    saveAmbientSettings();
-  });
-
-  birdSoundToggle.addEventListener("click", () => {
-    if (birdSoundTimer) {
-      stopBirdSounds();
-    } else {
-      applyAmbientMode(true);
-      startBirdSounds();
-    }
-    saveAmbientSettings();
-  });
-
-  ambientTheme.addEventListener("change", () => {
-    applyAmbientTheme(ambientTheme.value);
-    saveAmbientSettings();
-  });
-}
-
-function loadAmbientSettings() {
-  try {
-    return { theme: "daybreak", enabled: false, ...JSON.parse(localStorage.getItem(AMBIENT_STORAGE_KEY)) };
-  } catch {
-    return { theme: "daybreak", enabled: false };
-  }
-}
-
-function saveAmbientSettings() {
-  localStorage.setItem(
-    AMBIENT_STORAGE_KEY,
-    JSON.stringify({
-      enabled: document.body.classList.contains("ambient-mode"),
-      theme: ambientTheme.value,
-      sounds: Boolean(birdSoundTimer),
-    })
-  );
-}
-
-function applyAmbientMode(enabled) {
-  document.body.classList.toggle("ambient-mode", enabled);
-  ambientToggle.textContent = enabled ? "Ambient on" : "Ambient off";
-  ambientToggle.setAttribute("aria-pressed", String(enabled));
-  if (!enabled) stopBirdSounds();
-}
-
-function applyAmbientTheme(theme) {
-  document.body.classList.remove("theme-daybreak", "theme-golden-hour", "theme-moonlit");
-  document.body.classList.add(`theme-${theme}`);
-}
-
-function startBirdSounds() {
-  if (birdSoundTimer) return;
-  chirp();
-  birdSoundTimer = window.setInterval(chirp, 9000);
-  birdSoundToggle.textContent = "Bird sounds on";
-  birdSoundToggle.setAttribute("aria-pressed", "true");
-}
-
-function stopBirdSounds() {
-  if (birdSoundTimer) {
-    window.clearInterval(birdSoundTimer);
-    birdSoundTimer = null;
-  }
-  birdSoundToggle.textContent = "Bird sounds off";
-  birdSoundToggle.setAttribute("aria-pressed", "false");
-}
-
-function chirp() {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return;
-  birdAudioContext = birdAudioContext || new AudioContext();
-  const now = birdAudioContext.currentTime;
-  playTone(now, 1260, 0.08, 0.018);
-  playTone(now + 0.12, 1580, 0.07, 0.014);
-  playTone(now + 0.23, 1120, 0.06, 0.012);
-}
-
-function playTone(start, frequency, duration, volume) {
-  const oscillator = birdAudioContext.createOscillator();
-  const gain = birdAudioContext.createGain();
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(frequency, start);
-  gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
-  oscillator.connect(gain).connect(birdAudioContext.destination);
-  oscillator.start(start);
-  oscillator.stop(start + duration + 0.02);
-}
-
-function renderPreserve() {
-  const groups = speciesGroups();
-  const teamComplete = groups.filter((group) => group.members.size === teamSpeciesMembers.length).length;
-  const stages = [
-    { className: "preserve-has-meadow", threshold: 1, label: "meadow" },
-    { className: "preserve-has-wetland", threshold: 35, label: "wetland" },
-    { className: "preserve-has-woodland", threshold: 90, label: "woodland" },
-    { className: "preserve-has-canopy", threshold: 160, label: "canopy" },
-  ];
-  const unlocked = stages.filter((stage) => groups.length >= stage.threshold);
-
-  stages.forEach((stage) => preserveCanvas.classList.toggle(stage.className, groups.length >= stage.threshold));
-  preserveCanvas.classList.toggle("preserve-has-team-complete", teamComplete > 0);
-  preserveCanvas.style.setProperty("--preserve-progress", `${Math.min(100, Math.max(8, groups.length / 2.2))}%`);
-  preserveUnlocks.textContent = `${unlocked.length} habitat${unlocked.length === 1 ? "" : "s"} unlocked`;
-
-  if (!groups.length) {
-    preserveSummary.textContent = "Upload life lists to begin filling the preserve.";
-    return;
-  }
-
-  const habitatText = unlocked.map((stage) => stage.label).join(", ");
-  preserveSummary.textContent = `${groups.length} team species have grown the preserve into ${habitatText}. ${teamComplete} Team Complete species add the little floating-feather celebration.`;
 }
 
 function renderBirderTypeBadges() {

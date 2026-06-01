@@ -22,19 +22,6 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  transition: background 320ms ease, color 320ms ease;
-}
-
-body.ambient-mode.theme-daybreak {
-  background: linear-gradient(180deg, #fbfaf4 0%, #f1f6ef 48%, #fbfaf4 100%);
-}
-
-body.ambient-mode.theme-golden-hour {
-  background: linear-gradient(180deg, #fff8df 0%, #fbfaf4 44%, #eef4ee 100%);
-}
-
-body.ambient-mode.theme-moonlit {
-  background: linear-gradient(180deg, #e8eef0 0%, #fbfaf4 52%, #eef4ee 100%);
 }
 
 button,
@@ -170,7 +157,6 @@ main {
 
 .upload-band,
 .access-panel,
-.ambient-preserve,
 .birder-types,
 .assistant-panel,
 .list-section,
@@ -298,222 +284,6 @@ main {
   background:
     linear-gradient(135deg, rgba(243, 201, 93, 0.18), rgba(143, 184, 201, 0.14)),
     var(--ink);
-}
-
-.ambient-preserve {
-  display: grid;
-  grid-template-columns: minmax(260px, 0.62fr) minmax(0, 1.38fr);
-  gap: 18px;
-  border-radius: 8px;
-  padding: clamp(16px, 3vw, 24px);
-}
-
-.ambient-card,
-.preserve-card {
-  display: grid;
-  align-content: start;
-  gap: 16px;
-  border-radius: 8px;
-}
-
-.ambient-card {
-  padding: 18px;
-  background:
-    linear-gradient(135deg, rgba(143, 184, 201, 0.18), rgba(243, 201, 93, 0.16)),
-    #fffdf8;
-  border: 1px solid rgba(80, 111, 85, 0.14);
-}
-
-.ambient-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.ambient-controls select {
-  min-height: 42px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: #fffdf8;
-  color: var(--ink);
-  padding: 0 14px;
-}
-
-.preserve-card {
-  padding: 18px;
-  background:
-    linear-gradient(135deg, rgba(255, 253, 248, 0.96), rgba(238, 244, 238, 0.86)),
-    var(--mist);
-  border: 1px solid rgba(80, 111, 85, 0.14);
-}
-
-.preserve-canvas {
-  --preserve-progress: 8%;
-  position: relative;
-  min-height: 190px;
-  overflow: hidden;
-  border-radius: 8px;
-  background:
-    linear-gradient(180deg, rgba(143, 184, 201, 0.22), rgba(255, 253, 248, 0.55) 48%, rgba(158, 184, 159, 0.28)),
-    #eef4ee;
-  box-shadow: inset 0 0 0 1px rgba(80, 111, 85, 0.14);
-}
-
-.preserve-canvas::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: var(--preserve-progress);
-  height: 7px;
-  background: linear-gradient(90deg, var(--sun), var(--sage), var(--sky));
-  border-radius: 0 999px 999px 0;
-  opacity: 0.86;
-}
-
-.preserve-sun {
-  position: absolute;
-  top: 20px;
-  right: 34px;
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  background: rgba(243, 201, 93, 0.72);
-  box-shadow: 0 0 30px rgba(243, 201, 93, 0.34);
-}
-
-.preserve-layer {
-  position: absolute;
-  opacity: 0;
-  transform: translateY(14px);
-  transition: opacity 420ms ease, transform 420ms ease;
-}
-
-.preserve-has-meadow .preserve-layer--meadow,
-.preserve-has-wetland .preserve-layer--wetland,
-.preserve-has-woodland .preserve-layer--woodland,
-.preserve-has-canopy .preserve-layer--canopy {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.preserve-layer--meadow {
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 54px;
-  background:
-    radial-gradient(circle at 12% 35%, rgba(243, 201, 93, 0.56) 0 5px, transparent 6px),
-    radial-gradient(circle at 34% 52%, rgba(199, 91, 87, 0.4) 0 4px, transparent 5px),
-    linear-gradient(180deg, rgba(158, 184, 159, 0.15), rgba(111, 143, 78, 0.48));
-}
-
-.preserve-layer--wetland {
-  left: 8%;
-  bottom: 36px;
-  width: 42%;
-  height: 32px;
-  border-radius: 50%;
-  background: rgba(143, 184, 201, 0.58);
-  box-shadow: inset -18px -8px 0 rgba(63, 127, 153, 0.14);
-}
-
-.preserve-layer--woodland {
-  right: 10%;
-  bottom: 42px;
-  width: 120px;
-  height: 76px;
-  background:
-    radial-gradient(circle at 22% 48%, rgba(80, 111, 85, 0.76) 0 26px, transparent 27px),
-    radial-gradient(circle at 52% 34%, rgba(111, 143, 78, 0.75) 0 33px, transparent 34px),
-    radial-gradient(circle at 80% 55%, rgba(80, 111, 85, 0.7) 0 25px, transparent 26px);
-}
-
-.preserve-layer--canopy {
-  left: 11%;
-  top: 34px;
-  width: 88px;
-  height: 70px;
-  background:
-    radial-gradient(circle at 45% 38%, rgba(80, 111, 85, 0.64) 0 31px, transparent 32px),
-    linear-gradient(90deg, transparent 45%, rgba(86, 63, 35, 0.48) 46% 55%, transparent 56%);
-}
-
-.migration-path {
-  position: absolute;
-  width: 120px;
-  height: 46px;
-  border-top: 2px dashed rgba(34, 49, 45, 0.18);
-  border-radius: 50%;
-  opacity: 0;
-}
-
-.ambient-mode .migration-path {
-  opacity: 1;
-}
-
-.migration-path--one {
-  top: 44px;
-  left: 28%;
-  transform: rotate(-8deg);
-}
-
-.migration-path--two {
-  top: 74px;
-  left: 48%;
-  transform: rotate(12deg);
-}
-
-.preserve-bird,
-.preserve-feather {
-  position: absolute;
-  opacity: 0;
-}
-
-.ambient-mode .preserve-bird {
-  opacity: 0.62;
-}
-
-.preserve-bird {
-  width: 22px;
-  height: 10px;
-  border-top: 3px solid rgba(34, 49, 45, 0.46);
-  border-radius: 50%;
-}
-
-.preserve-bird--one {
-  top: 48px;
-  left: 36%;
-}
-
-.preserve-bird--two {
-  top: 80px;
-  left: 58%;
-  transform: rotate(12deg);
-}
-
-.preserve-has-team-complete .preserve-feather {
-  opacity: 0.75;
-  animation: featherFloat 8s ease-in-out infinite;
-}
-
-.preserve-feather {
-  width: 9px;
-  height: 28px;
-  border-radius: 60% 40% 60% 40%;
-  background: rgba(255, 253, 245, 0.78);
-  box-shadow: inset -3px -5px 0 rgba(143, 184, 201, 0.28);
-}
-
-.preserve-feather--one {
-  top: 24px;
-  left: 20%;
-}
-
-.preserve-feather--two {
-  top: 34px;
-  right: 24%;
-  animation-delay: -3s;
 }
 
 .workspace {
@@ -1068,16 +838,6 @@ textarea {
   line-height: 1.45;
 }
 
-@keyframes featherFloat {
-  0%,
-  100% {
-    transform: translateY(0) rotate(-12deg);
-  }
-  50% {
-    transform: translateY(14px) rotate(10deg);
-  }
-}
-
 .profile-card {
   display: grid;
   gap: 16px;
@@ -1224,7 +984,6 @@ th {
 @media (max-width: 900px) {
   .upload-band,
   .access-panel,
-  .ambient-preserve,
   .type-badge-grid,
   .workspace,
   .profile-grid {
