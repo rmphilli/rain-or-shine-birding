@@ -1344,6 +1344,7 @@ function fromRemoteBadge(row) {
 
 function renderMap() {
   const selected = memberFilter.value;
+  const isSmallScreen = window.matchMedia("(max-width: 620px)").matches;
   const points = observations
     .filter((obs) => selected === "all" || normalizeMemberName(obs.member) === selected)
     .filter((obs) => obs.latitude !== null && obs.longitude !== null);
@@ -1373,7 +1374,7 @@ function renderMap() {
   const locationGroups = aggregateMapLocations(points);
   const bounds = [];
   locationGroups.forEach((location) => {
-    const markerStyle = getMapMarkerStyle(location.members);
+    const markerStyle = getMapMarkerStyle(location.members, isSmallScreen);
     const marker = L.circleMarker([location.latitude, location.longitude], {
       radius: markerStyle.radius,
       color: markerStyle.ring,
@@ -1391,8 +1392,17 @@ function renderMap() {
     bounds.push([location.latitude, location.longitude]);
   });
 
-  birdMap.fitBounds(bounds, { padding: [26, 26], maxZoom: 12 });
-  setTimeout(() => birdMap.invalidateSize(), 0);
+  fitMapToBounds(bounds);
+}
+
+function fitMapToBounds(bounds) {
+  const fit = () => {
+    birdMap.invalidateSize();
+    birdMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
+  };
+  fit();
+  window.setTimeout(fit, 180);
+  window.setTimeout(fit, 650);
 }
 
 function aggregateMapLocations(points) {
@@ -1423,12 +1433,13 @@ function aggregateMapLocations(points) {
   });
 }
 
-function getMapMarkerStyle(members) {
+function getMapMarkerStyle(members, isSmallScreen = false) {
+  const touchBoost = isSmallScreen ? 3 : 0;
   if (members.length >= 3) {
     return {
       fill: "#d8a928",
       ring: "#fff5bf",
-      radius: 10,
+      radius: 10 + touchBoost,
       weight: 4,
       opacity: 0.95,
       className: "map-marker--shared-three",
@@ -1438,7 +1449,7 @@ function getMapMarkerStyle(members) {
     return {
       fill: "#b9c0bf",
       ring: "#f4f2e8",
-      radius: 9,
+      radius: 9 + touchBoost,
       weight: 4,
       opacity: 0.94,
       className: "map-marker--shared-two",
@@ -1447,7 +1458,7 @@ function getMapMarkerStyle(members) {
   return {
     fill: getMemberColor(members[0]),
     ring: "#fffdf5",
-    radius: 7,
+    radius: 7 + touchBoost,
     weight: 2,
     opacity: 0.88,
     className: "",
