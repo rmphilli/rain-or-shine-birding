@@ -800,15 +800,15 @@ textarea {
 }
 
 .type-badge__inner--matt .type-badge__face {
-  background-position: 55% 38%;
+  background-position: 54% 42%;
 }
 
 .type-badge__inner--jeff .type-badge__face {
-  background-position: 70% 38%;
+  background-position: 70% 44%;
 }
 
 .type-badge__inner--alex .type-badge__face {
-  background-position: 86% 36%;
+  background-position: 86% 42%;
 }
 
 .type-badge__name {
@@ -1000,7 +1000,7 @@ th {
   .hero {
     display: block;
     min-height: auto;
-    padding: 92px 16px 34px;
+    padding: 16px 16px 34px;
     background: var(--paper);
   }
 
@@ -1029,12 +1029,48 @@ th {
     line-height: 0.96;
   }
 
+  .map-wrap {
+    aspect-ratio: 4 / 3;
+    min-height: 320px;
+  }
+
   .topbar {
-    align-items: flex-start;
+    position: relative;
+    inset: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px 10px;
+    margin-bottom: 14px;
   }
 
   .brand {
-    max-width: 190px;
+    min-width: 0;
+    max-width: none;
+    gap: 8px;
+    font-size: 0.86rem;
+    line-height: 1.15;
+  }
+
+  .brand__mark {
+    flex: 0 0 auto;
+    width: 32px;
+    height: 32px;
+    font-size: 0.72rem;
+  }
+
+  .welcome-message {
+    grid-column: 1 / -1;
+    order: 3;
+    text-align: left;
+    font-size: 0.86rem;
+    line-height: 1.25;
+  }
+
+  .topbar .ghost-button {
+    justify-self: end;
+    padding: 8px 11px;
+    font-size: 0.84rem;
   }
 
   .stats,
