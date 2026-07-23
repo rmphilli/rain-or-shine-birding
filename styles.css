@@ -220,6 +220,30 @@ main {
   line-height: 1.4;
 }
 
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.sync-actions .ghost-button {
+  background: #fffdf8;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.sync-actions .sync-primary {
+  border-color: rgba(80, 111, 85, 0.34);
+  background: rgba(80, 111, 85, 0.1);
+  color: var(--moss);
+}
+
+.sync-actions .ghost-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
 .upload-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -249,8 +273,14 @@ main {
 
 .file-input {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   opacity: 0;
   pointer-events: none;
+  white-space: nowrap;
 }
 
 .stats {
@@ -590,6 +620,99 @@ input[type="search"] {
   line-height: 1.45;
 }
 
+.tour-panel {
+  margin-top: 16px;
+  border: 1px solid rgba(80, 111, 85, 0.18);
+  border-radius: 8px;
+  background: #fffdf8;
+  padding: 16px;
+}
+
+.tour-panel .panel__header {
+  margin-bottom: 12px;
+}
+
+.tour-panel h3 {
+  margin: 0;
+  font-size: 1.08rem;
+}
+
+.tour-panel__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-button {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border: 1px solid rgba(80, 111, 85, 0.22);
+  border-radius: 50%;
+  background: #fffdf8;
+  color: var(--moss);
+  cursor: pointer;
+  font-size: 1.1rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.icon-button:disabled {
+  cursor: wait;
+  opacity: 0.48;
+}
+
+.tour-list {
+  display: grid;
+  gap: 10px;
+}
+
+.tour-card {
+  display: grid;
+  gap: 5px;
+  border: 1px solid rgba(34, 49, 45, 0.1);
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, rgba(238, 244, 238, 0.7), rgba(255, 253, 248, 0.92)),
+    #fffdf8;
+  color: inherit;
+  padding: 12px;
+  text-decoration: none;
+}
+
+.tour-card:hover {
+  border-color: rgba(80, 111, 85, 0.32);
+  transform: translateY(-1px);
+}
+
+.tour-card span {
+  color: var(--moss);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.tour-card strong {
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
+.tour-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.tour-panel__meta {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
 .whimsy-card__meta {
   margin-top: 10px;
   color: var(--moss);
@@ -684,8 +807,14 @@ input[type="search"] {
 
 .image-picker input {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
   opacity: 0;
   pointer-events: none;
+  white-space: nowrap;
 }
 
 .image-preview {
@@ -997,6 +1126,10 @@ th {
 }
 
 @media (max-width: 620px) {
+  main {
+    padding-inline: 12px;
+  }
+
   .hero {
     display: block;
     min-height: auto;
@@ -1030,8 +1163,9 @@ th {
   }
 
   .map-wrap {
-    aspect-ratio: 4 / 3;
-    min-height: 320px;
+    aspect-ratio: auto;
+    height: min(320px, 82vw);
+    min-height: 0;
   }
 
   .topbar {
@@ -1078,9 +1212,36 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .upload-band,
+  .access-panel,
+  .stats article,
+  .panel,
+  .birder-types,
+  .assistant-panel,
+  .trophy-case,
+  .team-species-section,
+  .team-targets-section,
+  .list-section {
+    min-width: 0;
+  }
+
+  .sync-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .sync-actions .ghost-button {
+    width: 100%;
+    white-space: normal;
+  }
+
   .panel__header {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .tour-panel__tools {
+    justify-content: space-between;
   }
 
   .auth-form {

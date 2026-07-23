@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rain or Shine Birding Team</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260722-2" />
   </head>
   <body>
     <header class="hero">
@@ -17,7 +17,7 @@
           <span>Rain or Shine Birding Team</span>
         </div>
         <p id="welcomeMessage" class="welcome-message">Welcome, whimsical birder.</p>
-        <button id="resetData" class="ghost-button" type="button">Clear data</button>
+        <button id="resetData" class="ghost-button" type="button">Clear this device</button>
       </nav>
       <section class="hero__copy" aria-labelledby="pageTitle">
         <p class="eyebrow">Private flock dashboard</p>
@@ -34,6 +34,10 @@
           <p class="eyebrow">Life list imports</p>
           <h2 id="uploadTitle">Add an eBird or Merlin-linked CSV</h2>
           <p id="syncStatus" class="sync-status">Local preview mode</p>
+          <div class="sync-actions" aria-label="Shared data controls">
+            <button id="refreshSharedData" class="ghost-button" type="button">Refresh shared data</button>
+            <button id="publishLocalData" class="ghost-button sync-primary" type="button">Publish this browser's data</button>
+          </div>
         </div>
         <div class="upload-grid">
           <label class="upload-card">
@@ -130,6 +134,20 @@
               <p id="whimsyText">Loading a curious little dispatch...</p>
               <p id="whimsyMeta" class="whimsy-card__meta"></p>
             </div>
+          </article>
+          <article class="tour-panel" aria-labelledby="tourPanelTitle">
+            <div class="panel__header">
+              <div>
+                <p class="eyebrow">Next flock trip</p>
+                <h3 id="tourPanelTitle">Midwest birding tours</h3>
+              </div>
+              <div class="tour-panel__tools">
+                <span id="tourStatus" class="status-pill">Checking the trail...</span>
+                <button id="tourRefreshButton" class="icon-button" type="button" title="Refresh tour scout" aria-label="Refresh tour scout">&#8635;</button>
+              </div>
+            </div>
+            <div id="tourList" class="tour-list"></div>
+            <p id="tourMeta" class="tour-panel__meta">Checking current Midwest trip pages...</p>
           </article>
         </div>
       </section>
@@ -262,8 +280,9 @@
     <script>
       window.RSB_CHAT_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/chatgpt";
       window.RSB_CONFIG_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/config";
+      window.RSB_TOURS_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/tour-scout";
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=20260722-2"></script>
   </body>
 </html>

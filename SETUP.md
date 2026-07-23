@@ -4,6 +4,8 @@
 
 Create a Supabase project, open the SQL editor, and run `database/schema.sql`.
 
+The SQL is safe to run again when upgrading the app. It preserves bird data, refreshes the team access policies, adds the indexes used by the dashboard, and installs the atomic list-replacement function.
+
 Then in Authentication settings:
 
 - Enable email magic links.
@@ -18,17 +20,34 @@ In Netlify, add these variables:
 - `SUPABASE_URL`
 - `SUPABASE_ANON_KEY`
 - `OPENAI_API_KEY`
-- `OPENAI_MODEL` optional, defaults to `gpt-5.2`
+- `OPENAI_MODEL` optional, defaults to `gpt-5.4-mini`
 
 Redeploy after saving variables.
+
+Use the project URL for `SUPABASE_URL`, such as:
+
+`https://your-project-ref.supabase.co`
+
+Do not use the longer `/rest/v1/` URL there. The app now trims that if it happens, but the clean project URL is best.
 
 ## 3. What this version does
 
 - Works locally with browser storage if Supabase is not configured.
 - Uses Supabase shared data after sign-in.
-- Saves imported observations and milestone badges to Supabase.
+- Saves imported observations and milestone badges to Supabase in a transaction, so an interrupted upload cannot leave a member with a half-written list.
+- Loads every page of shared observations, including teams with more than 1,000 eBird rows.
+- Refreshes expired sign-ins automatically and reloads shared data when a teammate returns to the page.
+- Adds a refresh button to reload the shared Supabase data immediately.
+- Adds a publish button to move this browser's locally saved uploads into Supabase after sign-in.
+- Shows a Midwest birding tour scout panel that checks current official trip pages and keeps a seven-link fallback list.
 - Uses a Netlify function for ChatGPT, so the OpenAI key is not exposed in browser code.
 
-## 4. Current privacy model
+The `Clear this device` button only removes this browser's cached copy. It never deletes the shared team database.
 
-Any authenticated user can read and write the team tables. For the three-person private team, that keeps the setup simple. If the app grows, add a `team_members` table and tighten the row-level security policies.
+## 4. First shared-data migration
+
+After this version is deployed, sign in on the browser that still shows the three uploaded lists and select `Publish this browser's data` once. Then sign in from another browser and select `Refresh shared data`. From that point on, ordinary CSV uploads are written directly to the shared database.
+
+## 5. Current privacy model
+
+Only the three users in `team_members` can read or write the shared birding tables. All three can update the combined team collection; anonymous visitors cannot read it. Public sign-ups should remain disabled.

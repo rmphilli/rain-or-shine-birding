@@ -1,6 +1,9 @@
 const STORAGE_KEY = "rainOrShineBirdingData";
 const BADGE_STORAGE_KEY = "rainOrShineMilestoneBadges";
 const SESSION_STORAGE_KEY = "rainOrShineSupabaseSession";
+const REMOTE_PAGE_SIZE = 1000;
+const AUTO_SYNC_INTERVAL_MS = 60 * 1000;
+const AUTO_SYNC_MIN_GAP_MS = 15 * 1000;
 const defaultMembers = ["Jeff", "Alex", "Matt"];
 const teamSpeciesMembers = ["Alex", "Jeff", "Matt"];
 const emailMemberMap = {
@@ -16,12 +19,68 @@ const memberColorClasses = {
   Jeff: "jeff",
   Alex: "alex",
 };
+const midwestTourFinds = [
+  {
+    title: "Fall WPBO Birding Tours",
+    region: "Whitefish Point, Michigan",
+    dateLabel: "Sep 12-13 or Oct 3-4, 2026",
+    note: "Small-group fall migration weekends with Michigan Audubon at Whitefish Point.",
+    url: "https://www.michiganaudubon.org/upcoming-trips-workshops/",
+  },
+  {
+    title: "Shorebirding Weekend Adventure",
+    region: "Illinois River Valley",
+    dateLabel: "Aug 22-23, 2026",
+    note: "A guided weekend focused on shorebirds, waterfowl, and whatever else turns up.",
+    url: "https://illinoisaudubon.org/blog/field-trip/shorebirding-weekend-adventure-8-22-23-26/",
+  },
+  {
+    title: "Fall Migration: Chicago Lakefront Focus",
+    region: "Chicago, Illinois",
+    dateLabel: "Sep 9, 2026",
+    note: "A compact guided morning at Jarvis Bird Sanctuary with fall warblers squarely in view.",
+    url: "https://illinoisaudubon.org/blog/field-trip/fall-migration-chicago-lakefront-focus-9-9-26/",
+  },
+  {
+    title: "Illinois Audubon Adventure Field Trips",
+    region: "Across Illinois",
+    dateLabel: "Seasonal 2026 outings",
+    note: "The larger calendar includes fall migration, shorebirding, and waterfowl adventures.",
+    url: "https://illinoisaudubon.org/programs/field-trips/",
+  },
+  {
+    title: "Naturalist Journeys - Isle Royale & Keweenaw Peninsula",
+    region: "Michigan",
+    dateLabel: "Aug 21-30, 2026",
+    note: "A bigger trip with birding, natural history, scenery, and a little island-adventure flavor.",
+    url: "https://www.naturalistjourneys.com/tours/2026/08/21/michigan-s-isle-royale-keweenaw-peninsula",
+  },
+  {
+    title: "Michigan: Hotspots & Warblers",
+    region: "Michigan",
+    dateLabel: "May 12-20, 2027",
+    note: "A small-group migration circuit with Tawas, Kirtland's Warbler country, and Whitefish Point.",
+    url: "https://fieldguides.com/bird-tours/michigan/",
+  },
+  {
+    title: "Minnesota in Winter",
+    region: "Minnesota",
+    dateLabel: "Jan 14-19, 2027",
+    note: "A northern winter expedition on the WINGS Midwest calendar, built for owls and boreal birds.",
+    url: "https://wingsbirds.com/tours/regions/midwest",
+  },
+];
 
 let observations = loadObservations();
 let userMilestoneBadges = loadMilestoneBadgeStore();
 let appConfig = { supabaseUrl: "", supabaseAnonKey: "" };
 let authSession = loadAuthSession();
 let isRemoteReady = false;
+let sessionRefreshPromise = null;
+let remoteSyncPromise = null;
+let lastRemoteSyncAt = 0;
+let authNotice = "";
+let signedInMemberName = "";
 
 const fileInputs = document.querySelectorAll(".file-input");
 const speciesTable = document.querySelector("#speciesTable");
@@ -48,10 +107,17 @@ const authEmail = document.querySelector("#authEmail");
 const authStatus = document.querySelector("#authStatus");
 const signOutButton = document.querySelector("#signOutButton");
 const syncStatus = document.querySelector("#syncStatus");
+const refreshSharedDataButton = document.querySelector("#refreshSharedData");
+const publishLocalDataButton = document.querySelector("#publishLocalData");
+const resetDataButton = document.querySelector("#resetData");
 const welcomeMessage = document.querySelector("#welcomeMessage");
 const whimsyTitle = document.querySelector("#whimsyTitle");
 const whimsyText = document.querySelector("#whimsyText");
 const whimsyMeta = document.querySelector("#whimsyMeta");
+const tourList = document.querySelector("#tourList");
+const tourStatus = document.querySelector("#tourStatus");
+const tourMeta = document.querySelector("#tourMeta");
+const tourRefreshButton = document.querySelector("#tourRefreshButton");
 
 let attachedBirdImage = null;
 let birdMap = null;
@@ -86,42 +152,64 @@ fileInputs.forEach((input) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    const text = await file.text();
-    const rows = parseCsv(text);
+    const hint = event.target.closest(".upload-card").querySelector(".upload-card__hint");
     const member = normalizeMemberName(event.target.dataset.member);
-    const imported = normalizeRows(rows, member, file.name);
+    hint.textContent = "Reading CSV...";
 
-    observations = observations.filter((item) => normalizeMemberName(item.member) !== member).concat(imported);
-    await saveImport(member, file.name, imported);
-    event.target.closest(".upload-card").querySelector(".upload-card__hint").textContent = `${imported.length} rows`;
-    render();
+    try {
+      const text = await file.text();
+      const rows = parseCsv(text);
+      const imported = normalizeRows(rows, member, file.name);
+      if (!imported.length) {
+        throw new Error("No bird rows were found. Use an eBird CSV with a Common Name or Species column.");
+      }
+
+      observations = observations.filter((item) => normalizeMemberName(item.member) !== member).concat(imported);
+      hint.textContent = isRemoteReady ? "Syncing..." : "Saving...";
+      const synced = await saveImport(member, file.name, imported);
+      hint.textContent = synced ? `${imported.length} rows shared` : `${imported.length} rows saved here`;
+      render();
+    } catch (error) {
+      hint.textContent = "Try another CSV";
+      syncStatus.textContent = `Import failed: ${error.message}`;
+    }
   });
 });
 
-document.querySelector("#resetData").addEventListener("click", async () => {
+resetDataButton.addEventListener("click", () => {
+  const confirmed = window.confirm(
+    "Clear the bird data saved in this browser? The shared team database will not be changed."
+  );
+  if (!confirmed) return;
+
   observations = [];
   userMilestoneBadges = [];
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(BADGE_STORAGE_KEY);
-  if (isRemoteReady) {
-    await remoteDelete("user_milestone_badges");
-    await remoteDelete("observations");
-    await remoteDelete("imports");
-  }
   fileInputs.forEach((input) => {
     input.value = "";
     input.closest(".upload-card").querySelector(".upload-card__hint").textContent = "Choose CSV";
   });
+  syncStatus.textContent = isRemoteReady
+    ? "This browser's saved copy was cleared. Refresh shared data to load the team cloud again."
+    : "This browser's saved copy was cleared.";
   render();
 });
 
 memberFilter.addEventListener("change", renderMap);
 speciesSearch.addEventListener("input", renderSpeciesTable);
-window.addEventListener("resize", renderMap);
+refreshSharedDataButton.addEventListener("click", () => syncRemoteData({ force: true }));
+publishLocalDataButton.addEventListener("click", publishLocalDataToCloud);
+tourRefreshButton.addEventListener("click", () => loadTourFinds({ announce: true }));
+window.addEventListener("resize", scheduleMapRefresh);
+window.addEventListener("orientationchange", scheduleMapRefresh);
 setupChatAssistant();
 setupAuth();
+setupAutoSync();
 initRemoteData();
 renderWhimsyWatch();
+renderTourFinds();
+loadTourFinds();
 
 render();
 
@@ -337,6 +425,55 @@ function renderWhimsyWatch() {
   whimsyTitle.textContent = dispatch.title;
   whimsyText.textContent = dispatch.text;
   whimsyMeta.textContent = dispatch.meta;
+}
+
+function renderTourFinds(tours = midwestTourFinds) {
+  tourList.innerHTML = "";
+  tours.slice(0, 7).forEach((tour) => {
+    const card = document.createElement("a");
+    card.className = "tour-card";
+    card.href = tour.url;
+    card.target = "_blank";
+    card.rel = "noopener noreferrer";
+    card.innerHTML = `
+      <span>${escapeHtml([tour.region, tour.dateLabel].filter(Boolean).join(" | "))}</span>
+      <strong>${escapeHtml(tour.title)}</strong>
+      <p>${escapeHtml(tour.note)}</p>
+    `;
+    tourList.appendChild(card);
+  });
+}
+
+async function loadTourFinds({ announce = false } = {}) {
+  const endpoint = window.RSB_TOURS_ENDPOINT || "";
+  if (!endpoint) {
+    tourStatus.textContent = "Curated scout list";
+    tourMeta.textContent = "Live checking begins on the published Netlify site.";
+    return;
+  }
+
+  tourRefreshButton.disabled = true;
+  if (announce) tourStatus.textContent = "Checking the trail...";
+
+  try {
+    const response = await fetchWithTimeout(`${endpoint}${announce ? `?refresh=${Date.now()}` : ""}`, {}, 12000);
+    const data = await response.json();
+    if (!response.ok || !Array.isArray(data.tours) || !data.tours.length) {
+      throw new Error(data.error || "Tour scout did not return any trips.");
+    }
+
+    renderTourFinds(data.tours);
+    tourStatus.textContent = `${data.tours.length} live leads`;
+    tourMeta.textContent = data.checkedAt
+      ? `Links checked ${formatDateTime(data.checkedAt)}. The scout refreshes regularly.`
+      : "Fresh Midwest trip leads from the tour scout.";
+  } catch (error) {
+    renderTourFinds();
+    tourStatus.textContent = "Curated scout list";
+    tourMeta.textContent = "Live checking is resting; these seven official trip pages are still ready to explore.";
+  } finally {
+    tourRefreshButton.disabled = false;
+  }
 }
 
 function renderBirderTypeBadges() {
@@ -686,38 +823,165 @@ function setupAuth() {
           emailRedirectTo: location.origin + location.pathname,
         },
       });
-      authStatus.textContent = "Magic link sent. Open it on this device to sync the team data.";
+      authStatus.textContent = "Magic link sent. Open it on this device; the shared flock will load automatically.";
     } catch (error) {
       authStatus.textContent = `Sign-in failed: ${error.message}`;
     }
   });
 
-  signOutButton.addEventListener("click", () => {
-    authSession = null;
-    localStorage.removeItem(SESSION_STORAGE_KEY);
-    isRemoteReady = false;
+  signOutButton.addEventListener("click", async () => {
+    const accessToken = authSession?.access_token;
+    if (accessToken && hasSupabaseConfig()) {
+      await fetch(`${appConfig.supabaseUrl}/auth/v1/logout`, {
+        method: "POST",
+        headers: supabaseHeaders(true),
+      }).catch(() => null);
+    }
+    clearAuthSession();
     updateAuthStatus();
     updateSyncStatus();
+    updateCloudButtons();
   });
+}
+
+function setupAutoSync() {
+  const refreshIfDue = () => {
+    if (!document.hidden && navigator.onLine && isRemoteReady && Date.now() - lastRemoteSyncAt > AUTO_SYNC_MIN_GAP_MS) {
+      syncRemoteData({ quiet: true });
+    }
+  };
+
+  window.addEventListener("focus", refreshIfDue);
+  window.addEventListener("online", () => {
+    syncStatus.textContent = "Back online. Refreshing the shared flock...";
+    refreshIfDue();
+  });
+  window.addEventListener("offline", () => {
+    syncStatus.textContent = "Offline for now. Uploads stay in this browser until the connection returns.";
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key === STORAGE_KEY || event.key === BADGE_STORAGE_KEY) {
+      observations = loadObservations();
+      userMilestoneBadges = loadMilestoneBadgeStore();
+      render();
+    }
+  });
+  document.addEventListener("visibilitychange", refreshIfDue);
+  window.setInterval(refreshIfDue, AUTO_SYNC_INTERVAL_MS);
+}
+
+async function publishLocalDataToCloud() {
+  if (!isRemoteReady || !(await ensureFreshSession())) {
+    syncStatus.textContent = "Sign in with a magic link before publishing saved data to the team cloud.";
+    updateCloudButtons();
+    return;
+  }
+
+  if (!observations.length) {
+    syncStatus.textContent = "There is no saved browser data to publish yet.";
+    updateCloudButtons();
+    return;
+  }
+
+  const confirmed = window.confirm(
+    "Publish this browser's saved bird data to the shared team database? This will replace each included birder's current cloud list."
+  );
+  if (!confirmed) return;
+
+  publishLocalDataButton.disabled = true;
+  refreshSharedDataButton.disabled = true;
+  syncStatus.textContent = "Publishing saved browser data to the shared team cloud...";
+
+  try {
+    const members = [...new Set(observations.map((obs) => normalizeMemberName(obs.member)))];
+    for (const member of members) {
+      const memberRows = observations.filter((obs) => normalizeMemberName(obs.member) === member);
+      const synced = await saveImport(member, "Saved browser data", memberRows, { reloadAfterSave: false, quiet: true });
+      if (!synced) throw new Error(`${member}'s list could not be published.`);
+    }
+
+    await syncRemoteData({ force: true, preserveLocalWhenRemoteEmpty: false });
+    syncStatus.textContent = `Published ${observations.length} observations to the shared team cloud. Everyone should see this after sign-in and refresh.`;
+  } catch (error) {
+    syncStatus.textContent = `Publish failed: ${error.message}`;
+  } finally {
+    publishLocalDataButton.disabled = false;
+    refreshSharedDataButton.disabled = false;
+    updateCloudButtons();
+  }
 }
 
 async function initRemoteData() {
   await loadRemoteConfig();
   applyAuthHash();
+  if (hasStoredAuthSession()) await ensureFreshSession();
   updateAuthStatus();
   updateSyncStatus();
 
   if (!isRemoteReady) return;
 
+  await syncRemoteData();
+}
+
+async function syncRemoteData(options = {}) {
+  const { force = false, quiet = false, preserveLocalWhenRemoteEmpty = true } = options;
+  if (!isRemoteReady) {
+    updateSyncStatus();
+    return;
+  }
+
+  if (remoteSyncPromise) return remoteSyncPromise;
+
+  remoteSyncPromise = performRemoteSync({ force, quiet, preserveLocalWhenRemoteEmpty });
   try {
-    observations = (await remoteSelect("observations")).map(fromRemoteObservation);
-    userMilestoneBadges = (await remoteSelect("user_milestone_badges")).map(fromRemoteBadge);
+    return await remoteSyncPromise;
+  } finally {
+    remoteSyncPromise = null;
+  }
+}
+
+async function performRemoteSync({ force, quiet, preserveLocalWhenRemoteEmpty }) {
+  if (!(await ensureFreshSession())) {
+    updateAuthStatus();
+    updateSyncStatus();
+    return;
+  }
+
+  if (force && !quiet) syncStatus.textContent = "Refreshing shared team data...";
+
+  try {
+    const [observationRows, badgeRows, rosterRows] = await Promise.all([
+      remoteSelect("observations"),
+      remoteSelect("user_milestone_badges"),
+      remoteSelect("team_members"),
+    ]);
+    const remoteObservations = observationRows.map(fromRemoteObservation);
+    const remoteBadges = badgeRows.map(fromRemoteBadge);
+    signedInMemberName = rosterRows[0]?.display_name || signedInMemberName;
+
+    if (remoteObservations.length || !preserveLocalWhenRemoteEmpty) {
+      observations = remoteObservations;
+      userMilestoneBadges = remoteBadges;
+    }
+
     saveObservations();
     saveMilestoneBadgeStore();
     render();
-    syncStatus.textContent = `Synced shared team data from Supabase. ${observations.length} observations loaded.`;
+    updateAuthStatus();
+    lastRemoteSyncAt = Date.now();
+    if (remoteObservations.length) {
+      syncStatus.textContent = `Shared flock current: ${remoteObservations.length.toLocaleString()} observations. Updated ${formatSyncTime(lastRemoteSyncAt)}.`;
+    } else {
+      syncStatus.textContent =
+        observations.length && preserveLocalWhenRemoteEmpty
+          ? `Signed in, but the shared database is empty. This browser has ${observations.length} saved observations ready to publish.`
+          : "Signed in, but the shared database returned 0 observations. Upload or publish saved data to share it across devices.";
+    }
+    updateCloudButtons();
+    scheduleMapRefresh();
   } catch (error) {
-    syncStatus.textContent = `Could not load shared data, so local preview data is still showing. ${error.message}`;
+    syncStatus.textContent = `Signed in, but shared data could not load. ${error.message}`;
+    updateCloudButtons();
   }
 }
 
@@ -733,29 +997,35 @@ async function loadRemoteConfig() {
     if (!response.ok) throw new Error("Config function did not respond.");
     const config = await response.json();
     appConfig = {
-      supabaseUrl: config.supabaseUrl || "",
+      supabaseUrl: normalizeSupabaseProjectUrl(config.supabaseUrl || ""),
       supabaseAnonKey: config.supabaseAnonKey || "",
     };
   } catch (error) {
     syncStatus.textContent = `Config not loaded yet. ${error.message}`;
   }
 
-  isRemoteReady = hasSupabaseConfig() && Boolean(authSession?.access_token);
+  isRemoteReady = hasSupabaseConfig() && hasStoredAuthSession();
+  updateCloudButtons();
 }
 
 function applyAuthHash() {
   const hash = new URLSearchParams(location.hash.replace(/^#/, ""));
-  const accessToken = hash.get("access_token");
-  const refreshToken = hash.get("refresh_token");
-  const expiresIn = Number(hash.get("expires_in") || 3600);
+  const search = new URLSearchParams(location.search.replace(/^\?/, ""));
+  const accessToken = hash.get("access_token") || search.get("access_token");
+  const refreshToken = hash.get("refresh_token") || search.get("refresh_token");
+  const expiresIn = Number(hash.get("expires_in") || search.get("expires_in") || 3600);
+  const authError = hash.get("error_description") || search.get("error_description") || hash.get("error") || search.get("error");
 
   if (accessToken) {
-    authSession = {
+    persistAuthSession({
       access_token: accessToken,
       refresh_token: refreshToken || "",
       expires_at: Date.now() + expiresIn * 1000,
-    };
-    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(authSession));
+    });
+    authNotice = "Signed in successfully. Loading the shared flock now.";
+    history.replaceState(null, "", location.pathname);
+  } else if (authError) {
+    authNotice = `Sign-in link failed: ${authError}`;
     history.replaceState(null, "", location.pathname);
   }
 }
@@ -766,10 +1036,12 @@ function updateAuthStatus() {
   const memberName = getSignedInMemberName();
   welcomeMessage.textContent = memberName ? `Welcome, ${memberName}.` : "Welcome, whimsical birder.";
 
-  if (!configured) {
+  if (authNotice) {
+    authStatus.textContent = authNotice;
+  } else if (!configured) {
     authStatus.textContent = "Connect Supabase to enable shared team data.";
   } else if (authSession) {
-    authStatus.textContent = "Signed in. Uploads and milestone badges will sync to the team database.";
+    authStatus.textContent = "Signed in. Uploads, milestones, and team analysis sync to the shared database.";
   } else {
     authStatus.textContent = "Supabase is connected. Sign in with a team email to sync shared data.";
   }
@@ -781,11 +1053,109 @@ function updateSyncStatus() {
   } else if (!authSession) {
     syncStatus.textContent = "Shared database connected. Sign in to sync.";
   } else {
-    syncStatus.textContent = "Shared database connected.";
+    syncStatus.textContent = "Signed in. Loading shared team data...";
+  }
+  updateCloudButtons();
+}
+
+function updateCloudButtons() {
+  refreshSharedDataButton.disabled = !isRemoteReady;
+  publishLocalDataButton.disabled = !isRemoteReady || !observations.length;
+  publishLocalDataButton.textContent = observations.length
+    ? `Publish this browser's data (${observations.length})`
+    : "Publish this browser's data";
+}
+
+function normalizeSupabaseProjectUrl(value) {
+  return String(value || "")
+    .trim()
+    .replace(/\/rest\/v1\/?$/i, "")
+    .replace(/\/auth\/v1\/?$/i, "")
+    .replace(/\/+$/g, "");
+}
+
+function hasStoredAuthSession() {
+  return Boolean(authSession?.access_token || authSession?.refresh_token);
+}
+
+function persistAuthSession(session) {
+  const expiresIn = Number(session.expires_in || 3600);
+  const rawExpiresAt = Number(session.expires_at || 0);
+  const expiresAt = rawExpiresAt
+    ? rawExpiresAt > 10_000_000_000
+      ? rawExpiresAt
+      : rawExpiresAt * 1000
+    : Date.now() + expiresIn * 1000;
+  authSession = {
+    access_token: session.access_token || authSession?.access_token || "",
+    refresh_token: session.refresh_token || authSession?.refresh_token || "",
+    expires_at: expiresAt,
+  };
+  localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(authSession));
+  isRemoteReady = hasSupabaseConfig() && hasStoredAuthSession();
+}
+
+function clearAuthSession(notice = "") {
+  authSession = null;
+  authNotice = notice;
+  signedInMemberName = "";
+  isRemoteReady = false;
+  localStorage.removeItem(SESSION_STORAGE_KEY);
+}
+
+async function ensureFreshSession({ force = false } = {}) {
+  if (!hasSupabaseConfig() || !hasStoredAuthSession()) return false;
+  const hasTime = Number(authSession.expires_at || 0) - Date.now() > 60 * 1000;
+  if (!force && authSession.access_token && hasTime) {
+    isRemoteReady = true;
+    return true;
+  }
+
+  if (!authSession.refresh_token) {
+    clearAuthSession("Your sign-in expired. Send yourself a fresh magic link to reconnect.");
+    return false;
+  }
+
+  if (sessionRefreshPromise) return sessionRefreshPromise;
+  sessionRefreshPromise = refreshAuthSession();
+  try {
+    return await sessionRefreshPromise;
+  } finally {
+    sessionRefreshPromise = null;
+  }
+}
+
+async function refreshAuthSession() {
+  try {
+    const response = await fetchWithTimeout(
+      `${appConfig.supabaseUrl}/auth/v1/token?grant_type=refresh_token`,
+      {
+        method: "POST",
+        headers: supabaseHeaders(false),
+        body: JSON.stringify({ refresh_token: authSession.refresh_token }),
+      },
+      15000
+    );
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.access_token) {
+      throw new Error(data.msg || data.error_description || data.error || "Session refresh failed.");
+    }
+
+    persistAuthSession(data);
+    authNotice = "";
+    updateAuthStatus();
+    updateCloudButtons();
+    return true;
+  } catch (error) {
+    clearAuthSession("Your sign-in expired. Send yourself a fresh magic link to reconnect.");
+    updateAuthStatus();
+    updateCloudButtons();
+    return false;
   }
 }
 
 function getSignedInMemberName() {
+  if (signedInMemberName) return signedInMemberName;
   const email = getSignedInEmail();
   if (!email) return "";
   return emailMemberMap[email.toLowerCase()] || email.split("@")[0];
@@ -810,25 +1180,36 @@ async function getAssistantReply(message, image) {
   const endpoint = getChatEndpoint();
   if (endpoint) {
     try {
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          image,
-          context: {
-            team: "Rain or Shine Birding Team",
-            members: defaultMembers,
-            speciesCount: speciesGroups().length,
-          },
-        }),
-      });
+      const response = await fetchWithTimeout(
+        endpoint,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message,
+            image,
+            context: {
+              team: "Rain or Shine Birding Team",
+              members: defaultMembers,
+              speciesCount: speciesGroups().length,
+            },
+          }),
+        },
+        30000
+      );
       const data = await response.json();
       if (!response.ok) {
-        throw new Error(data.error || `Assistant request failed: ${response.status}`);
+        const error = new Error(data.error || `Assistant request failed: ${response.status}`);
+        error.status = response.status;
+        throw error;
       }
+      assistantStatus.textContent = "Connected";
       return data.reply || data.output_text || "I received the request, but no reply text came back.";
     } catch (error) {
+      assistantStatus.textContent = "Local helper";
+      if (error.status === 429 && /quota|credit|billing/i.test(error.message)) {
+        return `The live birding assistant is resting because the OpenAI API project needs credits. The shared lists, maps, targets, and tour scout still work normally. For now: ${getDemoAssistantReply(message, image)}`;
+      }
       return `The live assistant endpoint returned this error: ${error.message}. Demo fallback: ${getDemoAssistantReply(message, image)}`;
     }
   }
@@ -851,7 +1232,7 @@ function getDemoAssistantReply(message, image) {
   if (text.includes("id") || text.includes("identify") || text.includes("field mark")) {
     return "For bird ID, send a photo when you have one and include location, date, habitat, size, colors, behavior, call, and whether it was alone or in a flock. I will give likely candidates, confidence, and what to check next.";
   }
-  return "I can help with bird ID, field marks, eBird checklist wording, trip ideas, target species, and friendly Rain or Shine banter. The live ChatGPT connection just needs a small backend endpoint so your API key stays private.";
+  return "I can still help organize bird ID clues, compare field marks, shape eBird notes, and sketch a Rain or Shine trip plan in local helper mode.";
 }
 
 function addChatMessage(role, text) {
@@ -1158,39 +1539,38 @@ function compareObservationNewestFirst(a, b) {
   return a.member.localeCompare(b.member);
 }
 
-async function saveImport(member, sourceName, imported) {
+async function saveImport(member, sourceName, imported, options = {}) {
+  const { reloadAfterSave = true, quiet = false } = options;
   saveObservations();
+  updateCloudButtons();
 
-  if (!isRemoteReady) {
+  if (!isRemoteReady || !(await ensureFreshSession())) {
     syncStatus.textContent = `Saved ${imported.length} rows locally. Sign in after Supabase is connected to sync shared data.`;
-    return;
+    updateCloudButtons();
+    return false;
   }
 
   try {
-    await remoteDelete("observations", `member_name=eq.${encodeURIComponent(member)}`);
-    const importRows = await remoteInsert("imports", [
-      {
-        member_name: member,
-        source_name: sourceName,
-        row_count: imported.length,
-      },
-    ]);
-    const importId = importRows[0]?.id || null;
-    const remoteRows = imported.map((obs) => toRemoteObservation(obs, importId));
+    await remoteReplaceMemberObservations(member, sourceName, imported);
 
-    if (remoteRows.length) {
-      await remoteUpsert("observations", remoteRows, "id");
+    if (reloadAfterSave) {
+      await syncRemoteData({ force: true, preserveLocalWhenRemoteEmpty: false });
+      syncStatus.textContent = `Synced ${imported.length} ${member} observations to Supabase and refreshed shared team data.`;
+    } else if (!quiet) {
+      syncStatus.textContent = `Synced ${imported.length} ${member} observations to Supabase.`;
     }
-
-    syncStatus.textContent = `Synced ${imported.length} ${member} observations to Supabase.`;
+    return true;
   } catch (error) {
     syncStatus.textContent = `Saved locally, but Supabase sync failed: ${error.message}`;
+    return false;
+  } finally {
+    updateCloudButtons();
   }
 }
 
 async function syncMilestoneBadges() {
   const speciesBadges = userMilestoneBadges.filter((badge) => badge.badge_kind === "species");
-  if (!isRemoteReady || !speciesBadges.length) return;
+  if (!isRemoteReady || !speciesBadges.length || !(await ensureFreshSession())) return;
   try {
     await remoteUpsert("user_milestone_badges", speciesBadges.map(toRemoteBadge), "id");
   } catch (error) {
@@ -1199,11 +1579,15 @@ async function syncMilestoneBadges() {
 }
 
 async function supabaseAuthRequest(path, body) {
-  const response = await fetch(`${appConfig.supabaseUrl}/auth/v1${path}`, {
-    method: "POST",
-    headers: supabaseHeaders(false),
-    body: JSON.stringify(body),
-  });
+  const response = await fetchWithTimeout(
+    `${appConfig.supabaseUrl}/auth/v1${path}`,
+    {
+      method: "POST",
+      headers: supabaseHeaders(false),
+      body: JSON.stringify(body),
+    },
+    15000
+  );
   if (!response.ok) {
     const data = await response.json().catch(() => ({}));
     throw new Error(data.msg || data.error_description || data.error || response.statusText);
@@ -1212,42 +1596,79 @@ async function supabaseAuthRequest(path, body) {
 }
 
 async function remoteSelect(table) {
-  const response = await fetch(`${appConfig.supabaseUrl}/rest/v1/${table}?select=*`, {
-    headers: supabaseHeaders(true),
-  });
-  return parseSupabaseResponse(response);
+  const rows = [];
+  let offset = 0;
+
+  while (true) {
+    const response = await authorizedFetch(`${appConfig.supabaseUrl}/rest/v1/${table}?select=*`, {
+      method: "GET",
+      headers: {
+        Range: `${offset}-${offset + REMOTE_PAGE_SIZE - 1}`,
+        "Range-Unit": "items",
+        Prefer: "count=exact",
+      },
+    });
+    if (response.status === 416) break;
+    const page = await parseSupabaseResponse(response);
+    rows.push(...page);
+    const total = Number.parseInt((response.headers.get("content-range") || "").split("/")[1], 10);
+    if (!page.length || (Number.isFinite(total) && rows.length >= total)) break;
+    offset += page.length;
+  }
+
+  return rows;
 }
 
-async function remoteInsert(table, rows) {
-  const response = await fetch(`${appConfig.supabaseUrl}/rest/v1/${table}`, {
+async function remoteReplaceMemberObservations(member, sourceName, imported) {
+  const response = await authorizedFetch(`${appConfig.supabaseUrl}/rest/v1/rpc/replace_member_observations`, {
     method: "POST",
-    headers: { ...supabaseHeaders(true), Prefer: "return=representation" },
-    body: JSON.stringify(rows),
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      p_member_name: normalizeMemberName(member),
+      p_source_name: sourceName,
+      p_observations: imported.map((obs) => toRemoteObservation(obs, null)),
+    }),
   });
   return parseSupabaseResponse(response);
 }
 
 async function remoteUpsert(table, rows, conflictColumn) {
-  const response = await fetch(`${appConfig.supabaseUrl}/rest/v1/${table}?on_conflict=${conflictColumn}`, {
+  const response = await authorizedFetch(`${appConfig.supabaseUrl}/rest/v1/${table}?on_conflict=${conflictColumn}`, {
     method: "POST",
-    headers: { ...supabaseHeaders(true), Prefer: "resolution=merge-duplicates,return=representation" },
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
     body: JSON.stringify(rows),
   });
   return parseSupabaseResponse(response);
 }
 
-async function remoteDelete(table, filter = "") {
-  const url = `${appConfig.supabaseUrl}/rest/v1/${table}${filter ? `?${filter}` : ""}`;
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: supabaseHeaders(true),
-  });
-  if (!response.ok) await parseSupabaseResponse(response);
+async function authorizedFetch(url, options = {}, retryAuth = true) {
+  if (!(await ensureFreshSession())) throw new Error("Your sign-in has expired. Send a fresh magic link to reconnect.");
+  const response = await fetchWithTimeout(
+    url,
+    {
+      ...options,
+      headers: { ...supabaseHeaders(true), ...(options.headers || {}) },
+    },
+    20000
+  );
+
+  if (response.status === 401 && retryAuth && authSession?.refresh_token) {
+    const refreshed = await ensureFreshSession({ force: true });
+    if (refreshed) return authorizedFetch(url, options, false);
+  }
+  return response;
 }
 
 async function parseSupabaseResponse(response) {
   const text = await response.text();
-  const data = text ? JSON.parse(text) : [];
+  let data = [];
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { message: text };
+    }
+  }
   if (!response.ok) {
     throw new Error(data.message || data.msg || data.error || response.statusText);
   }
@@ -1405,6 +1826,13 @@ function fitMapToBounds(bounds) {
   window.setTimeout(fit, 650);
 }
 
+function scheduleMapRefresh() {
+  window.requestAnimationFrame(() => {
+    if (birdMap) birdMap.invalidateSize();
+    renderMap();
+  });
+}
+
 function aggregateMapLocations(points) {
   const groups = new Map();
   points.forEach((point) => {
@@ -1492,12 +1920,39 @@ function loadMilestoneBadgeStore() {
 function loadAuthSession() {
   try {
     const session = JSON.parse(localStorage.getItem(SESSION_STORAGE_KEY));
-    if (!session?.access_token) return null;
-    if (session.expires_at && session.expires_at < Date.now()) return null;
+    if (!session?.access_token && !session?.refresh_token) return null;
     return session;
   } catch {
     return null;
   }
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (error.name === "AbortError") throw new Error("The request took too long. Please try again.");
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function formatSyncTime(timestamp) {
+  return new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(new Date(timestamp));
+}
+
+function formatDateTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "recently";
+  return new Intl.DateTimeFormat(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
 }
 
 function escapeHtml(value) {
