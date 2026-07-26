@@ -438,6 +438,21 @@ input[type="search"] {
   box-shadow: 0 0 0 4px rgba(243, 201, 93, 0.32);
 }
 
+.map-artwork {
+  margin: 18px 0 0;
+  border: 1px solid rgba(80, 111, 85, 0.16);
+  border-radius: 8px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(238, 244, 238, 0.62), rgba(255, 253, 248, 0.92));
+  box-shadow: 0 10px 22px rgba(27, 43, 39, 0.08);
+}
+
+.map-artwork img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
 .member-heading {
   display: inline-flex;
   align-items: center;
@@ -1166,6 +1181,10 @@ th {
     aspect-ratio: auto;
     height: min(320px, 82vw);
     min-height: 0;
+  }
+
+  .map-artwork {
+    margin-top: 14px;
   }
 
   .topbar {
