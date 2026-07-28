@@ -790,7 +790,9 @@ async function loadNearbyTargetSightings({ announce = false } = {}) {
   if (announce) nearbyTargetsStatus.textContent = "Checking eBird...";
 
   try {
-    const response = await fetchWithTimeout(`${endpoint}${announce ? `?refresh=${Date.now()}` : ""}`, {}, 15000);
+    const querySeparator = endpoint.includes("?") ? "&" : "?";
+    const requestUrl = `${endpoint}${querySeparator}version=20260728-2${announce ? `&refresh=${Date.now()}` : ""}`;
+    const response = await fetchWithTimeout(requestUrl, {}, 15000);
     const data = await response.json();
     if (!response.ok || !Array.isArray(data.sightings)) {
       const error = new Error(data.error || "The nearby eBird scout did not respond.");
@@ -949,7 +951,9 @@ async function loadAdventureFinds({ announce = false } = {}) {
   if (announce) adventureStatus.textContent = "Checking the calendars...";
 
   try {
-    const response = await fetchWithTimeout(`${endpoint}${announce ? `?refresh=${Date.now()}` : ""}`, {}, 15000);
+    const querySeparator = endpoint.includes("?") ? "&" : "?";
+    const requestUrl = `${endpoint}${querySeparator}version=20260728-2${announce ? `&refresh=${Date.now()}` : ""}`;
+    const response = await fetchWithTimeout(requestUrl, {}, 15000);
     const data = await response.json();
     const sections = data.sections || (Array.isArray(data.tours) ? { ...adventureFinds, birding: data.tours } : null);
     if (!response.ok || !sections) throw new Error(data.error || "Adventure scout did not return any events.");
