@@ -60,6 +60,27 @@ const adventureFinds = {
       note: "A small-group migration circuit with Tawas, Kirtland's Warbler country, and Whitefish Point.",
       url: "https://fieldguides.com/bird-tours/michigan/",
     },
+    {
+      title: "Shorebirding Mid-Week Adventure",
+      region: "Central Illinois River Valley",
+      dateLabel: "Aug 20-21, 2026",
+      note: "Two guided weekdays among Illinois River shorebirds, waterfowl, and migration surprises.",
+      url: "https://illinoisaudubon.org/blog/field-trip/shorebirding-mid-week-adventure-8-20-21-26/",
+    },
+    {
+      title: "Fall Migration: Chicago Lakefront Focus",
+      region: "Chicago, Illinois",
+      dateLabel: "Sep 16, 2026",
+      note: "A second small-group lakefront morning timed for fall migrants at Jarvis Bird Sanctuary.",
+      url: "https://illinoisaudubon.org/blog/field-trip/fall-migration-chicago-lakefront-focus-9-16-2026-2/",
+    },
+    {
+      title: "Dixon Waterfowl Refuge Fall Birding",
+      region: "Hennepin, Illinois",
+      dateLabel: "Oct 24, 2026",
+      note: "A guided fall outing with Doug Stotz across wetland, prairie, and woodland habitat.",
+      url: "https://illinoisaudubon.org/blog/field-trip/dixon-waterfowl-refuge-fall-birding-adventure-with-doug-stotz-10-24-26/",
+    },
   ],
   bigfoot: [
     {
@@ -90,6 +111,27 @@ const adventureFinds = {
       note: "A free cryptid gathering with Bigfoot researchers, special tours, films, music, and a creature market.",
       url: "https://goatmanfest.com/",
     },
+    {
+      title: "Illinois BFRO Expedition",
+      region: "Illinois field location",
+      dateLabel: "Sep 10-13, 2026",
+      note: "A multi-night BFRO expedition with field teams, nighttime observation, and a nearby Illinois basecamp.",
+      url: "https://bfro.net/news/roundup/expeds_2026.asp",
+    },
+    {
+      title: "Missouri BFRO Expedition",
+      region: "Missouri field location",
+      dateLabel: "Oct 22-25, 2026",
+      note: "A guided fall expedition in an active Missouri report area with organized nighttime teams.",
+      url: "https://bfro.net/news/roundup/expeds_2026.asp",
+    },
+    {
+      title: "New York Bigfoot Conference",
+      region: "New York",
+      dateLabel: "Oct 3, 2026",
+      note: "A one-day gathering of investigators, witnesses, speakers, and curious cryptid-minded travelers.",
+      url: "https://nybigfootconference.com/event-tickets/",
+    },
   ],
   paranormal: [
     {
@@ -119,6 +161,34 @@ const adventureFinds = {
       dateLabel: "Nov 13-15, 2026",
       note: "An international conference on UFOs, contact, consciousness, history, and spirituality.",
       url: "https://www.ufokonference.cz/en/",
+    },
+    {
+      title: "Great Lakes Paranormal Convention",
+      region: "New Baltimore, Michigan",
+      dateLabel: "Aug 15-16, 2026",
+      note: "Investigators, authors, vendors, and hands-on paranormal sessions near the Great Lakes.",
+      url: "https://www.michigan.org/event/great-lakes-paranormal-convention-0",
+    },
+    {
+      title: "MUFON International Symposium",
+      region: "Covington, Kentucky",
+      dateLabel: "Aug 27-30, 2026",
+      note: "A major UFO research gathering with investigators, case studies, speakers, and skyward questions.",
+      url: "https://mufonsymposium.com/",
+    },
+    {
+      title: "Ghostly Great Lakes Weekend",
+      region: "Sault Ste. Marie, Michigan",
+      dateLabel: "Aug 28-29, 2026",
+      note: "Michigan Paracon speakers and investigations gathered beside the locks and old waterfront.",
+      url: "https://saultstemarie.com/event/ghostly-great-lakes-weekend/",
+    },
+    {
+      title: "IFEX SETI & UAP Conference",
+      region: "Wurzburg, Germany",
+      dateLabel: "Sep 23-24, 2026",
+      note: "A university-hosted scientific conference focused on SETI, UAP research, methods, and evidence.",
+      url: "https://www.uni-wuerzburg.de/ifex/veranstaltungen/ifex-seti-uap-konferenz-2026/",
     },
   ],
 };
@@ -163,6 +233,8 @@ const syncStatus = document.querySelector("#syncStatus");
 const refreshSharedDataButton = document.querySelector("#refreshSharedData");
 const publishLocalDataButton = document.querySelector("#publishLocalData");
 const resetDataButton = document.querySelector("#resetData");
+const ambienceToggle = document.querySelector("#ambienceToggle");
+const ambienceToggleLabel = document.querySelector("#ambienceToggleLabel");
 const welcomeMessage = document.querySelector("#welcomeMessage");
 const teamTravelMiles = document.querySelector("#teamTravelMiles");
 const teamTravelMeta = document.querySelector("#teamTravelMeta");
@@ -182,6 +254,9 @@ const adventureRefreshButton = document.querySelector("#adventureRefreshButton")
 let attachedBirdImage = null;
 let birdMap = null;
 let birdMapLayer = null;
+let ambientAudioContext = null;
+let ambientRainSource = null;
+let ambientBirdTimer = null;
 
 const aliases = {
   species: ["commonname", "common name", "species", "englishname", "english name"],
@@ -265,6 +340,7 @@ adventureRefreshButton.addEventListener("click", () => loadAdventureFinds({ anno
 window.addEventListener("resize", scheduleMapRefresh);
 window.addEventListener("orientationchange", scheduleMapRefresh);
 setupChatAssistant();
+setupAmbientSound();
 setupAuth();
 setupAutoSync();
 initRemoteData();
@@ -609,7 +685,7 @@ function renderNearbyTargetSightings() {
       if (a.neededBy.length !== b.neededBy.length) return a.neededBy.length - b.neededBy.length;
       return (b.date || "").localeCompare(a.date || "");
     })
-    .slice(0, 9);
+    .slice(0, 7);
 
   if (!targets.length) {
     nearbyTargetsList.innerHTML =
@@ -618,29 +694,88 @@ function renderNearbyTargetSightings() {
   }
 
   targets.forEach((target) => {
-    const card = document.createElement(target.url ? "a" : "article");
+    const card = document.createElement("article");
     card.className = "nearby-target";
+    const photoLink = document.createElement("a");
+    photoLink.className = "nearby-target__photo";
+    photoLink.href = target.url || "#";
+    photoLink.target = target.url ? "_blank" : "";
+    photoLink.rel = target.url ? "noopener noreferrer" : "";
+    photoLink.setAttribute("aria-label", `View ${target.species} report`);
+    if (!target.url) photoLink.removeAttribute("href");
+
+    const body = document.createElement("div");
+    body.className = "nearby-target__body";
+    const speciesLink = document.createElement(target.url ? "a" : "strong");
+    speciesLink.className = "nearby-target__name";
+    speciesLink.textContent = target.species;
     if (target.url) {
-      card.href = target.url;
-      card.target = "_blank";
-      card.rel = "noopener noreferrer";
+      speciesLink.href = target.url;
+      speciesLink.target = "_blank";
+      speciesLink.rel = "noopener noreferrer";
     }
+    const location = document.createElement("span");
+    location.textContent = target.location || "eBird location";
+    const recency = document.createElement("span");
+    recency.className = "nearby-target__recency";
+    recency.textContent = target.date ? formatRelativeObservationDate(target.date) : "Recently reported";
+    body.append(speciesLink, location, recency);
+
+    const neededBy = document.createElement("span");
+    neededBy.className = "needed-by";
+    neededBy.setAttribute("aria-label", `Needed by ${target.neededBy.join(", ")}`);
     card.innerHTML = `
-      <div>
-        <strong>${escapeHtml(target.species)}</strong>
-        <span>${escapeHtml(target.location || "eBird location")}${target.date ? ` | ${escapeHtml(formatDate(target.date))}` : ""}</span>
-      </div>
-      <span class="needed-by" aria-label="Needed by ${escapeHtml(target.neededBy.join(", "))}">
-        ${target.neededBy
-          .map(
-            (member) =>
-              `<i class="needed-by__initial needed-by__initial--${getMemberColorClass(member)}" title="${escapeHtml(member)} needs this bird">${escapeHtml(member[0])}</i>`
-          )
-          .join("")}
-      </span>
+      ${target.neededBy
+        .map(
+          (member) =>
+            `<i class="needed-by__initial needed-by__initial--${getMemberColorClass(member)}" title="${escapeHtml(member)} needs this bird">${escapeHtml(member[0])}</i>`
+        )
+        .join("")}
     `;
+    neededBy.append(...card.childNodes);
+    card.replaceChildren(photoLink, body, neededBy);
     nearbyTargetsList.appendChild(card);
+    loadTargetBirdPhoto(target, photoLink);
   });
+}
+
+function formatRelativeObservationDate(dateValue) {
+  const observed = new Date(`${dateValue}T00:00:00Z`);
+  if (Number.isNaN(observed.getTime())) return `Reported ${dateValue}`;
+  const today = new Date();
+  const todayUtc = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+  const ageDays = Math.max(0, Math.round((todayUtc - observed.getTime()) / 86_400_000));
+  if (ageDays === 0) return "Reported today";
+  if (ageDays === 1) return "Reported yesterday";
+  return `Reported ${ageDays} days ago`;
+}
+
+async function loadTargetBirdPhoto(target, photoLink) {
+  const titles = [...new Set([target.species, target.scientific].filter(Boolean))];
+  for (const title of titles) {
+    try {
+      const response = await fetchWithTimeout(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+        { headers: { Accept: "application/json" } },
+        6000
+      );
+      if (!response.ok) continue;
+      const page = await response.json();
+      const imageUrl = page.thumbnail?.source || page.originalimage?.source;
+      if (!imageUrl) continue;
+      const image = document.createElement("img");
+      image.src = imageUrl;
+      image.alt = `${target.species} reference photo`;
+      image.loading = "lazy";
+      image.decoding = "async";
+      photoLink.href = page.content_urls?.desktop?.page || target.url || "#";
+      photoLink.title = "Reference photo from Wikimedia";
+      photoLink.replaceChildren(image);
+      return;
+    } catch {
+      // Keep the illustrated bird placeholder if Wikimedia is unavailable.
+    }
+  }
 }
 
 async function loadNearbyTargetSightings({ announce = false } = {}) {
@@ -682,7 +817,7 @@ async function loadNearbyTargetSightings({ announce = false } = {}) {
 function renderAdventureFinds(sections = adventureFinds) {
   Object.entries(adventureLists).forEach(([category, list]) => {
     list.innerHTML = "";
-    (sections[category] || []).slice(0, 4).forEach((event) => {
+    (sections[category] || []).slice(0, 7).forEach((event) => {
       const card = document.createElement("a");
       card.className = "adventure-card";
       card.href = event.url;
@@ -696,6 +831,110 @@ function renderAdventureFinds(sections = adventureFinds) {
       list.appendChild(card);
     });
   });
+}
+
+function setupAmbientSound() {
+  if (!ambienceToggle || !ambienceToggleLabel) return;
+
+  ambienceToggle.addEventListener("click", async () => {
+    if (ambientAudioContext) {
+      stopAmbientSound();
+      return;
+    }
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      ambienceToggleLabel.textContent = "Sound unavailable";
+      ambienceToggle.disabled = true;
+      return;
+    }
+
+    try {
+      ambientAudioContext = new AudioContextClass();
+      await ambientAudioContext.resume();
+      startLightRain(ambientAudioContext);
+      scheduleBirdChirp();
+      ambienceToggle.setAttribute("aria-pressed", "true");
+      ambienceToggleLabel.textContent = "Ambience on";
+    } catch {
+      stopAmbientSound();
+      ambienceToggleLabel.textContent = "Try sound again";
+    }
+  });
+
+  window.addEventListener("pagehide", stopAmbientSound);
+}
+
+function startLightRain(context) {
+  const seconds = 3;
+  const buffer = context.createBuffer(1, context.sampleRate * seconds, context.sampleRate);
+  const data = buffer.getChannelData(0);
+  let last = 0;
+  for (let index = 0; index < data.length; index += 1) {
+    const white = Math.random() * 2 - 1;
+    last = last * 0.985 + white * 0.015;
+    data[index] = last * 3.2;
+  }
+
+  ambientRainSource = context.createBufferSource();
+  const highPass = context.createBiquadFilter();
+  const lowPass = context.createBiquadFilter();
+  const rainGain = context.createGain();
+  highPass.type = "highpass";
+  highPass.frequency.value = 420;
+  lowPass.type = "lowpass";
+  lowPass.frequency.value = 5200;
+  rainGain.gain.value = 0.028;
+  ambientRainSource.buffer = buffer;
+  ambientRainSource.loop = true;
+  ambientRainSource.connect(highPass).connect(lowPass).connect(rainGain).connect(context.destination);
+  ambientRainSource.start();
+}
+
+function scheduleBirdChirp() {
+  if (!ambientAudioContext) return;
+  ambientBirdTimer = window.setTimeout(() => {
+    playBirdChirp();
+    scheduleBirdChirp();
+  }, 3200 + Math.random() * 5200);
+}
+
+function playBirdChirp() {
+  const context = ambientAudioContext;
+  if (!context || context.state === "closed") return;
+  const now = context.currentTime;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const baseFrequency = 1500 + Math.random() * 700;
+  oscillator.type = "sine";
+  oscillator.frequency.setValueAtTime(baseFrequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(baseFrequency * 1.45, now + 0.08);
+  oscillator.frequency.exponentialRampToValueAtTime(baseFrequency * 0.9, now + 0.2);
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.026, now + 0.025);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+  oscillator.connect(gain).connect(context.destination);
+  oscillator.start(now);
+  oscillator.stop(now + 0.24);
+}
+
+function stopAmbientSound() {
+  if (ambientBirdTimer) window.clearTimeout(ambientBirdTimer);
+  ambientBirdTimer = null;
+  if (ambientRainSource) {
+    try {
+      ambientRainSource.stop();
+    } catch {
+      // It may already be stopped as the audio context closes.
+    }
+  }
+  ambientRainSource = null;
+  if (ambientAudioContext && ambientAudioContext.state !== "closed") ambientAudioContext.close();
+  ambientAudioContext = null;
+  if (ambienceToggle && ambienceToggleLabel) {
+    ambienceToggle.setAttribute("aria-pressed", "false");
+    ambienceToggleLabel.textContent = "Rain + birds";
+  }
 }
 
 async function loadAdventureFinds({ announce = false } = {}) {

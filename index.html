@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rain or Shine Birding Team</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260728-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260728-2" />
   </head>
   <body>
     <header class="hero">
@@ -17,7 +17,13 @@
           <span>Rain or Shine Birding Team</span>
         </div>
         <p id="welcomeMessage" class="welcome-message">Welcome, whimsical birder.</p>
-        <button id="resetData" class="ghost-button" type="button">Clear this device</button>
+        <div class="topbar__actions">
+          <button id="ambienceToggle" class="ghost-button ambience-toggle" type="button" aria-pressed="false">
+            <span aria-hidden="true">&#9835;</span>
+            <span id="ambienceToggleLabel">Rain + birds</span>
+          </button>
+          <button id="resetData" class="ghost-button" type="button">Clear this device</button>
+        </div>
       </nav>
       <section class="hero__copy" aria-labelledby="pageTitle">
         <p class="eyebrow">Private flock dashboard</p>
@@ -132,7 +138,7 @@
           </figure>
         </div>
 
-        <div class="panel">
+        <div class="panel overlap-panel">
           <div class="panel__header">
             <div>
               <p class="eyebrow">Overlap</p>
@@ -144,7 +150,7 @@
             <div class="nearby-targets__header">
               <div>
                 <p class="eyebrow">Whimsy watch</p>
-                <h3 id="nearbyTargetsTitle">Birds stirring near Morton</h3>
+                <h3 id="nearbyTargetsTitle">Seven birds to chase together</h3>
               </div>
               <div class="nearby-targets__tools">
                 <span id="nearbyTargetsStatus" class="status-pill">Checking eBird...</span>
@@ -152,7 +158,7 @@
               </div>
             </div>
             <div id="nearbyTargetsList" class="nearby-targets__list"></div>
-            <p id="nearbyTargetsMeta" class="nearby-targets__meta">Looking back 30 days within 30 miles.</p>
+            <p id="nearbyTargetsMeta" class="nearby-targets__meta">Recent eBird reports for species still missing from at least one team life list.</p>
           </article>
         </div>
       </section>
@@ -348,6 +354,6 @@
       window.RSB_NEARBY_TARGETS_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/nearby-targets";
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./app.js?v=20260728-1"></script>
+    <script src="./app.js?v=20260728-2"></script>
   </body>
 </html>
