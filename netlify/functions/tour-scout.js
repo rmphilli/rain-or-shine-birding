@@ -32,6 +32,30 @@ const EVENT_SOURCES = {
       url: "https://fieldguides.com/bird-tours/michigan/",
       expiresAt: "2027-05-22",
     },
+    {
+      title: "Shorebirding Mid-Week Adventure",
+      region: "Central Illinois River Valley",
+      dateLabel: "Aug 20-21, 2026",
+      note: "Two guided weekdays among Illinois River shorebirds, waterfowl, and migration surprises.",
+      url: "https://illinoisaudubon.org/blog/field-trip/shorebirding-mid-week-adventure-8-20-21-26/",
+      expiresAt: "2026-08-23",
+    },
+    {
+      title: "Fall Migration: Chicago Lakefront Focus",
+      region: "Chicago, Illinois",
+      dateLabel: "Sep 16, 2026",
+      note: "A second small-group lakefront morning timed for fall migrants at Jarvis Bird Sanctuary.",
+      url: "https://illinoisaudubon.org/blog/field-trip/fall-migration-chicago-lakefront-focus-9-16-2026-2/",
+      expiresAt: "2026-09-18",
+    },
+    {
+      title: "Dixon Waterfowl Refuge Fall Birding",
+      region: "Hennepin, Illinois",
+      dateLabel: "Oct 24, 2026",
+      note: "A guided fall outing with Doug Stotz across wetland, prairie, and woodland habitat.",
+      url: "https://illinoisaudubon.org/blog/field-trip/dixon-waterfowl-refuge-fall-birding-adventure-with-doug-stotz-10-24-26/",
+      expiresAt: "2026-10-26",
+    },
   ],
   bigfoot: [
     {
@@ -65,6 +89,30 @@ const EVENT_SOURCES = {
       note: "A free cryptid gathering with Bigfoot researchers, special tours, films, music, and a creature market.",
       url: "https://goatmanfest.com/",
       expiresAt: "2026-10-20",
+    },
+    {
+      title: "Illinois BFRO Expedition",
+      region: "Illinois field location",
+      dateLabel: "Sep 10-13, 2026",
+      note: "A multi-night BFRO expedition with field teams, nighttime observation, and a nearby Illinois basecamp.",
+      url: "https://bfro.net/news/roundup/expeds_2026.asp",
+      expiresAt: "2026-09-15",
+    },
+    {
+      title: "Missouri BFRO Expedition",
+      region: "Missouri field location",
+      dateLabel: "Oct 22-25, 2026",
+      note: "A guided fall expedition in an active Missouri report area with organized nighttime teams.",
+      url: "https://bfro.net/news/roundup/expeds_2026.asp",
+      expiresAt: "2026-10-27",
+    },
+    {
+      title: "New York Bigfoot Conference",
+      region: "New York",
+      dateLabel: "Oct 3, 2026",
+      note: "A one-day gathering of investigators, witnesses, speakers, and curious cryptid-minded travelers.",
+      url: "https://nybigfootconference.com/event-tickets/",
+      expiresAt: "2026-10-05",
     },
   ],
   paranormal: [
@@ -100,6 +148,38 @@ const EVENT_SOURCES = {
       url: "https://www.ufokonference.cz/en/",
       expiresAt: "2026-11-17",
     },
+    {
+      title: "Great Lakes Paranormal Convention",
+      region: "New Baltimore, Michigan",
+      dateLabel: "Aug 15-16, 2026",
+      note: "Investigators, authors, vendors, and hands-on paranormal sessions near the Great Lakes.",
+      url: "https://www.michigan.org/event/great-lakes-paranormal-convention-0",
+      expiresAt: "2026-08-18",
+    },
+    {
+      title: "MUFON International Symposium",
+      region: "Covington, Kentucky",
+      dateLabel: "Aug 27-30, 2026",
+      note: "A major UFO research gathering with investigators, case studies, speakers, and skyward questions.",
+      url: "https://mufonsymposium.com/",
+      expiresAt: "2026-09-01",
+    },
+    {
+      title: "Ghostly Great Lakes Weekend",
+      region: "Sault Ste. Marie, Michigan",
+      dateLabel: "Aug 28-29, 2026",
+      note: "Michigan Paracon speakers and investigations gathered beside the locks and old waterfront.",
+      url: "https://saultstemarie.com/event/ghostly-great-lakes-weekend/",
+      expiresAt: "2026-08-31",
+    },
+    {
+      title: "IFEX SETI & UAP Conference",
+      region: "Wurzburg, Germany",
+      dateLabel: "Sep 23-24, 2026",
+      note: "A university-hosted scientific conference focused on SETI, UAP research, methods, and evidence.",
+      url: "https://www.uni-wuerzburg.de/ifex/veranstaltungen/ifex-seti-uap-konferenz-2026/",
+      expiresAt: "2026-09-26",
+    },
   ],
 };
 
@@ -112,7 +192,7 @@ exports.handler = async () => {
       const candidates = sources.filter((event) => event.expiresAt >= today);
       const checks = await Promise.all(candidates.map(checkEventSource));
       const ordered = checks.filter((event) => event.reachable).concat(checks.filter((event) => !event.reachable));
-      sections[category] = ordered.slice(0, 4).map(({ reachable, expiresAt, ...event }) => event);
+      sections[category] = ordered.slice(0, 7).map(({ reachable, expiresAt, ...event }) => event);
     })
   );
 
