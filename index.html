@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rain or Shine Birding Team</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260726-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260728-1" />
   </head>
   <body>
     <header class="hero">
@@ -105,6 +105,17 @@
               <option value="all">Everyone</option>
             </select>
           </div>
+          <div class="travel-summary" aria-label="Estimated team birding mileage">
+            <span class="travel-summary__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" role="img">
+                <path d="M16 7h.01M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.3-2.3L2 20m18-13 2 .5-2 .5M10 18v3m4-3.3V21M7 18a6 6 0 0 0 3.8-10.6" />
+              </svg>
+            </span>
+            <div>
+              <span id="teamTravelMiles" class="travel-summary__miles">0 miles</span>
+              <p id="teamTravelMeta">Estimated team trail from Morton, Illinois.</p>
+            </div>
+          </div>
           <div class="map-wrap">
             <div id="birdMap" aria-label="Map of uploaded observation locations"></div>
             <p id="mapEmpty" class="empty-state">Upload lists with latitude and longitude to paint the map.</p>
@@ -129,30 +140,80 @@
             </div>
           </div>
           <div id="memberBreakdown" class="member-breakdown"></div>
-          <article class="whimsy-card" aria-labelledby="whimsyTitle">
-            <div class="whimsy-card__icon" aria-hidden="true">?</div>
-            <div>
-              <p class="eyebrow">Whimsy watch</p>
-              <h3 id="whimsyTitle">Field note from the edge</h3>
-              <p id="whimsyText">Loading a curious little dispatch...</p>
-              <p id="whimsyMeta" class="whimsy-card__meta"></p>
-            </div>
-          </article>
-          <article class="tour-panel" aria-labelledby="tourPanelTitle">
-            <div class="panel__header">
+          <article class="nearby-targets" aria-labelledby="nearbyTargetsTitle">
+            <div class="nearby-targets__header">
               <div>
-                <p class="eyebrow">Next flock trip</p>
-                <h3 id="tourPanelTitle">Midwest birding tours</h3>
+                <p class="eyebrow">Whimsy watch</p>
+                <h3 id="nearbyTargetsTitle">Birds stirring near Morton</h3>
               </div>
-              <div class="tour-panel__tools">
-                <span id="tourStatus" class="status-pill">Checking the trail...</span>
-                <button id="tourRefreshButton" class="icon-button" type="button" title="Refresh tour scout" aria-label="Refresh tour scout">&#8635;</button>
+              <div class="nearby-targets__tools">
+                <span id="nearbyTargetsStatus" class="status-pill">Checking eBird...</span>
+                <button id="nearbyTargetsRefreshButton" class="icon-button" type="button" title="Refresh nearby eBird targets" aria-label="Refresh nearby eBird targets">&#8635;</button>
               </div>
             </div>
-            <div id="tourList" class="tour-list"></div>
-            <p id="tourMeta" class="tour-panel__meta">Checking current Midwest trip pages...</p>
+            <div id="nearbyTargetsList" class="nearby-targets__list"></div>
+            <p id="nearbyTargetsMeta" class="nearby-targets__meta">Looking back 30 days within 30 miles.</p>
           </article>
         </div>
+      </section>
+
+      <section class="adventure-board" aria-labelledby="adventureBoardTitle">
+        <div class="panel__header">
+          <div>
+            <p class="eyebrow">Next team adventure</p>
+            <h2 id="adventureBoardTitle">Birds, footprints, and strange skies</h2>
+          </div>
+          <div class="adventure-board__tools">
+            <span id="adventureStatus" class="status-pill">Checking the calendars...</span>
+            <button id="adventureRefreshButton" class="icon-button" type="button" title="Refresh adventure calendars" aria-label="Refresh adventure calendars">&#8635;</button>
+          </div>
+        </div>
+        <div class="adventure-columns">
+          <article class="adventure-column adventure-column--birding">
+            <header class="adventure-column__header">
+              <span class="adventure-column__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M16 7h.01M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.3-2.3L2 20m18-13 2 .5-2 .5M10 18v3m4-3.3V21M7 18a6 6 0 0 0 3.8-10.6" />
+                </svg>
+              </span>
+              <div>
+                <p class="eyebrow">Feathers</p>
+                <h3>Birding</h3>
+              </div>
+            </header>
+            <div id="birdingAdventureList" class="adventure-list"></div>
+          </article>
+          <article class="adventure-column adventure-column--bigfoot">
+            <header class="adventure-column__header">
+              <span class="adventure-column__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path d="M12 3c2.6 0 4.2 2 4.2 4.6 0 2.2-1.1 4.1-2.7 4.8l1.2 6.1c.2 1.2-.7 2.5-2 2.5h-1.4c-1.3 0-2.2-1.3-2-2.5l1.2-6.1c-1.6-.7-2.7-2.6-2.7-4.8C7.8 5 9.4 3 12 3Zm-5.6 9.2c1.2.2 1.9 1.5 1.5 2.7-.4 1.3-1.6 2.1-2.8 1.8-1.2-.3-1.8-1.6-1.4-2.9.4-1.2 1.5-1.9 2.7-1.6Zm11.2 0c1.2-.3 2.3.4 2.7 1.6.4 1.3-.2 2.6-1.4 2.9-1.2.3-2.4-.5-2.8-1.8-.4-1.2.3-2.5 1.5-2.7Z" />
+                </svg>
+              </span>
+              <div>
+                <p class="eyebrow">Footprints</p>
+                <h3>Bigfoot</h3>
+              </div>
+            </header>
+            <div id="bigfootAdventureList" class="adventure-list"></div>
+          </article>
+          <article class="adventure-column adventure-column--paranormal">
+            <header class="adventure-column__header">
+              <span class="adventure-column__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <ellipse cx="12" cy="12" rx="8.5" ry="3.5" />
+                  <path d="M8 9.7 9.8 6h4.4L16 9.7M5 14.2l-2 2m16-2 2 2M8.5 16.2l-1 2.8m8-2.8 1 2.8M9.5 12h.01m5 0h.01" />
+                </svg>
+              </span>
+              <div>
+                <p class="eyebrow">Signals</p>
+                <h3>Aliens, Psi &amp; Paranormal</h3>
+              </div>
+            </header>
+            <div id="paranormalAdventureList" class="adventure-list"></div>
+          </article>
+        </div>
+        <p id="adventureMeta" class="adventure-board__meta">Checking official event pages and expedition calendars.</p>
       </section>
 
       <section class="birder-types" aria-labelledby="birderTypesTitle">
@@ -284,8 +345,9 @@
       window.RSB_CHAT_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/chatgpt";
       window.RSB_CONFIG_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/config";
       window.RSB_TOURS_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/tour-scout";
+      window.RSB_NEARBY_TARGETS_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/nearby-targets";
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./app.js?v=20260722-2"></script>
+    <script src="./app.js?v=20260728-1"></script>
   </body>
 </html>

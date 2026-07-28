@@ -19,57 +19,109 @@ const memberColorClasses = {
   Jeff: "jeff",
   Alex: "alex",
 };
-const midwestTourFinds = [
-  {
-    title: "Fall WPBO Birding Tours",
-    region: "Whitefish Point, Michigan",
-    dateLabel: "Sep 12-13 or Oct 3-4, 2026",
-    note: "Small-group fall migration weekends with Michigan Audubon at Whitefish Point.",
-    url: "https://www.michiganaudubon.org/upcoming-trips-workshops/",
-  },
-  {
-    title: "Shorebirding Weekend Adventure",
-    region: "Illinois River Valley",
-    dateLabel: "Aug 22-23, 2026",
-    note: "A guided weekend focused on shorebirds, waterfowl, and whatever else turns up.",
-    url: "https://illinoisaudubon.org/blog/field-trip/shorebirding-weekend-adventure-8-22-23-26/",
-  },
-  {
-    title: "Fall Migration: Chicago Lakefront Focus",
-    region: "Chicago, Illinois",
-    dateLabel: "Sep 9, 2026",
-    note: "A compact guided morning at Jarvis Bird Sanctuary with fall warblers squarely in view.",
-    url: "https://illinoisaudubon.org/blog/field-trip/fall-migration-chicago-lakefront-focus-9-9-26/",
-  },
-  {
-    title: "Illinois Audubon Adventure Field Trips",
-    region: "Across Illinois",
-    dateLabel: "Seasonal 2026 outings",
-    note: "The larger calendar includes fall migration, shorebirding, and waterfowl adventures.",
-    url: "https://illinoisaudubon.org/programs/field-trips/",
-  },
-  {
-    title: "Naturalist Journeys - Isle Royale & Keweenaw Peninsula",
-    region: "Michigan",
-    dateLabel: "Aug 21-30, 2026",
-    note: "A bigger trip with birding, natural history, scenery, and a little island-adventure flavor.",
-    url: "https://www.naturalistjourneys.com/tours/2026/08/21/michigan-s-isle-royale-keweenaw-peninsula",
-  },
-  {
-    title: "Michigan: Hotspots & Warblers",
-    region: "Michigan",
-    dateLabel: "May 12-20, 2027",
-    note: "A small-group migration circuit with Tawas, Kirtland's Warbler country, and Whitefish Point.",
-    url: "https://fieldguides.com/bird-tours/michigan/",
-  },
-  {
-    title: "Minnesota in Winter",
-    region: "Minnesota",
-    dateLabel: "Jan 14-19, 2027",
-    note: "A northern winter expedition on the WINGS Midwest calendar, built for owls and boreal birds.",
-    url: "https://wingsbirds.com/tours/regions/midwest",
-  },
-];
+const MORTON_HOME = { latitude: 40.6128, longitude: -89.4593 };
+const lifeListExcludedTaxa = new Set(["anserspdomestictype", "trochilidaesp"]);
+const lifeListTaxonAliases = {
+  ardeaherodiasherodiasgroup: "ardeaherodias",
+  anasplatyrhynchosdomestictype: "anasplatyrhynchos",
+  columbaliviaferalpigeon: "columbalivia",
+};
+const memberLifeListDisplayOverrides = {
+  // The raw export remains untouched. Apply only while Matt's canonical total is the known 233-to-232 mismatch.
+  Matt: { canonicalCount: 233, displayCount: 232 },
+};
+const adventureFinds = {
+  birding: [
+    {
+      title: "Fall WPBO Birding Tours",
+      region: "Whitefish Point, Michigan",
+      dateLabel: "Sep 12-13 or Oct 3-4, 2026",
+      note: "Small-group fall migration weekends with Michigan Audubon at Whitefish Point.",
+      url: "https://www.michiganaudubon.org/upcoming-trips-workshops/",
+    },
+    {
+      title: "Shorebirding Weekend Adventure",
+      region: "Illinois River Valley",
+      dateLabel: "Aug 22-23, 2026",
+      note: "A guided weekend focused on shorebirds, waterfowl, and whatever else turns up.",
+      url: "https://illinoisaudubon.org/blog/field-trip/shorebirding-weekend-adventure-8-22-23-26/",
+    },
+    {
+      title: "Fall Migration: Chicago Lakefront Focus",
+      region: "Chicago, Illinois",
+      dateLabel: "Sep 9, 2026",
+      note: "A compact guided morning at Jarvis Bird Sanctuary with fall warblers squarely in view.",
+      url: "https://illinoisaudubon.org/blog/field-trip/fall-migration-chicago-lakefront-focus-9-9-26/",
+    },
+    {
+      title: "Michigan: Hotspots & Warblers",
+      region: "Michigan",
+      dateLabel: "May 12-20, 2027",
+      note: "A small-group migration circuit with Tawas, Kirtland's Warbler country, and Whitefish Point.",
+      url: "https://fieldguides.com/bird-tours/michigan/",
+    },
+  ],
+  bigfoot: [
+    {
+      title: "Ohio BFRO Expedition",
+      region: "Ohio field location",
+      dateLabel: "Sep 17-20 or Oct 15-18, 2026",
+      note: "A multi-night BFRO field expedition with basecamp and nighttime teams in active Ohio areas.",
+      url: "https://www.bfro.net/news/roundup/ohio.asp",
+    },
+    {
+      title: "Wisconsin BFRO Expedition",
+      region: "Wisconsin Driftless Area",
+      dateLabel: "Oct 1-4, 2026",
+      note: "A guided nighttime field expedition in one of Wisconsin's most active report areas.",
+      url: "https://www.bfro.net/news/roundup/wisconsin.asp",
+    },
+    {
+      title: "Indiana Bigfoot Conference",
+      region: "Nashville, Indiana",
+      dateLabel: "Sep 25-26, 2026",
+      note: "Firsthand encounters, researchers, and local makers at The Seasons Lodge.",
+      url: "https://www.indianabigfootconference.com/",
+    },
+    {
+      title: "Goatman Festival",
+      region: "Louisville, Kentucky",
+      dateLabel: "Oct 15-18, 2026",
+      note: "A free cryptid gathering with Bigfoot researchers, special tours, films, music, and a creature market.",
+      url: "https://goatmanfest.com/",
+    },
+  ],
+  paranormal: [
+    {
+      title: "Psi Games International",
+      region: "Schedule announcement pending",
+      dateLabel: "2026",
+      note: "Friendly competitions in remote viewing, intuition, psychokinesis, and other psi skills.",
+      url: "https://psigamesinternational.com/",
+    },
+    {
+      title: "Lake Superior Paranormal Convention",
+      region: "Thunder Bay, Ontario",
+      dateLabel: "Oct 16-17, 2026",
+      note: "Speakers, workshops, and an optional after-dark investigation at Fort William.",
+      url: "https://www.lakesuperiorparacon.com/tickets",
+    },
+    {
+      title: "Halifax Paranormal Symposium",
+      region: "Halifax, Nova Scotia",
+      dateLabel: "Oct 2026",
+      note: "Two days of paranormal research, workshops, vendors, psychics, and curious minds.",
+      url: "https://www.hfxparanormal.com/",
+    },
+    {
+      title: "Extraterrestrials: Conscious Universe",
+      region: "Prague or live stream",
+      dateLabel: "Nov 13-15, 2026",
+      note: "An international conference on UFOs, contact, consciousness, history, and spirituality.",
+      url: "https://www.ufokonference.cz/en/",
+    },
+  ],
+};
 
 let observations = loadObservations();
 let userMilestoneBadges = loadMilestoneBadgeStore();
@@ -81,6 +133,7 @@ let remoteSyncPromise = null;
 let lastRemoteSyncAt = 0;
 let authNotice = "";
 let signedInMemberName = "";
+let nearbyTargetSightings = [];
 
 const fileInputs = document.querySelectorAll(".file-input");
 const speciesTable = document.querySelector("#speciesTable");
@@ -111,13 +164,20 @@ const refreshSharedDataButton = document.querySelector("#refreshSharedData");
 const publishLocalDataButton = document.querySelector("#publishLocalData");
 const resetDataButton = document.querySelector("#resetData");
 const welcomeMessage = document.querySelector("#welcomeMessage");
-const whimsyTitle = document.querySelector("#whimsyTitle");
-const whimsyText = document.querySelector("#whimsyText");
-const whimsyMeta = document.querySelector("#whimsyMeta");
-const tourList = document.querySelector("#tourList");
-const tourStatus = document.querySelector("#tourStatus");
-const tourMeta = document.querySelector("#tourMeta");
-const tourRefreshButton = document.querySelector("#tourRefreshButton");
+const teamTravelMiles = document.querySelector("#teamTravelMiles");
+const teamTravelMeta = document.querySelector("#teamTravelMeta");
+const nearbyTargetsList = document.querySelector("#nearbyTargetsList");
+const nearbyTargetsStatus = document.querySelector("#nearbyTargetsStatus");
+const nearbyTargetsMeta = document.querySelector("#nearbyTargetsMeta");
+const nearbyTargetsRefreshButton = document.querySelector("#nearbyTargetsRefreshButton");
+const adventureLists = {
+  birding: document.querySelector("#birdingAdventureList"),
+  bigfoot: document.querySelector("#bigfootAdventureList"),
+  paranormal: document.querySelector("#paranormalAdventureList"),
+};
+const adventureStatus = document.querySelector("#adventureStatus");
+const adventureMeta = document.querySelector("#adventureMeta");
+const adventureRefreshButton = document.querySelector("#adventureRefreshButton");
 
 let attachedBirdImage = null;
 let birdMap = null;
@@ -200,16 +260,17 @@ memberFilter.addEventListener("change", renderMap);
 speciesSearch.addEventListener("input", renderSpeciesTable);
 refreshSharedDataButton.addEventListener("click", () => syncRemoteData({ force: true }));
 publishLocalDataButton.addEventListener("click", publishLocalDataToCloud);
-tourRefreshButton.addEventListener("click", () => loadTourFinds({ announce: true }));
+nearbyTargetsRefreshButton.addEventListener("click", () => loadNearbyTargetSightings({ announce: true }));
+adventureRefreshButton.addEventListener("click", () => loadAdventureFinds({ announce: true }));
 window.addEventListener("resize", scheduleMapRefresh);
 window.addEventListener("orientationchange", scheduleMapRefresh);
 setupChatAssistant();
 setupAuth();
 setupAutoSync();
 initRemoteData();
-renderWhimsyWatch();
-renderTourFinds();
-loadTourFinds();
+renderAdventureFinds();
+loadAdventureFinds();
+loadNearbyTargetSightings();
 
 render();
 
@@ -317,7 +378,9 @@ function titleCase(value) {
 function render() {
   renderMemberFilter();
   renderStats();
+  renderTravelSummary();
   renderMemberBreakdown();
+  renderNearbyTargetSightings();
   renderBirderTypeBadges();
   renderProfileTrophyCase();
   renderTeamSpeciesTable();
@@ -328,7 +391,7 @@ function render() {
 
 function speciesGroups() {
   const groups = new Map();
-  observations.forEach((obs) => {
+  observations.filter(isLifeListEligible).forEach((obs) => {
     const speciesId = getSpeciesId(obs);
     if (!groups.has(speciesId)) {
       groups.set(speciesId, {
@@ -361,7 +424,13 @@ function renderStats() {
 }
 
 function getTeamLifeListerScore() {
-  return defaultMembers.reduce((total, member) => total + getUniqueLifeListSpecies(member).length, 0);
+  return defaultMembers.reduce((total, member) => total + getMemberLifeListCount(member), 0);
+}
+
+function getMemberLifeListCount(member) {
+  const canonicalCount = getUniqueLifeListSpecies(member).length;
+  const override = memberLifeListDisplayOverrides[normalizeMemberName(member)];
+  return override?.canonicalCount === canonicalCount ? override.displayCount : canonicalCount;
 }
 
 function renderMemberFilter() {
@@ -383,13 +452,13 @@ function renderMemberBreakdown() {
 
   members.forEach((member) => {
     const memberObservations = observations.filter((obs) => normalizeMemberName(obs.member) === member);
-    const memberSpecies = new Set(memberObservations.map((obs) => getSpeciesId(obs)));
+    const memberSpeciesCount = getMemberLifeListCount(member);
     const card = document.createElement("article");
     card.className = "member-card";
     card.innerHTML = `
       <strong>${member}</strong>
       <span class="member-card__stats">
-        <span>${memberSpecies.size} Life Listers</span>
+        <span>${memberSpeciesCount} Life Listers</span>
         <span>${memberObservations.length} Observations</span>
       </span>
     `;
@@ -397,82 +466,267 @@ function renderMemberBreakdown() {
   });
 }
 
-function renderWhimsyWatch() {
-  const dispatches = [
-    {
-      title: "Saucer Weather Advisory",
-      text: "Cloud decks with soft edges are excellent for dramatic bird photos and suspiciously perfect for friendly saucer silhouettes. Official recommendation: scan for raptors first, mysteries second.",
-      meta: "Updated this visit | UFO desk",
-    },
-    {
-      title: "Sasquatch Track Protocol",
-      text: "If a muddy footprint appears near a warbler hotspot, document scale, substrate, stride, and nearby birds. If it turns out to be a hiking boot, the checklist still counts.",
-      meta: "Updated this visit | Forest folklore unit",
-    },
-    {
-      title: "The Cardinal Remains Unbothered",
-      text: "Preliminary Rain or Shine analysis suggests cardinals would continue calling from exposed branches even during a low-altitude saucer pass. Confidence: whimsical, but emotionally strong.",
-      meta: "Updated this visit | Backyard anomalies",
-    },
-    {
-      title: "Bigfoot's Likely Life Bird",
-      text: "Based on habitat preference and a healthy respect for dense cover, today's speculative nominee is Pileated Woodpecker. Large, loud, elusive, and absolutely on brand.",
-      meta: "Updated this visit | Cryptid ornithology",
-    },
-  ];
-  const index = new Date().getDate() % dispatches.length;
-  const dispatch = dispatches[index];
-  whimsyTitle.textContent = dispatch.title;
-  whimsyText.textContent = dispatch.text;
-  whimsyMeta.textContent = dispatch.meta;
+function renderTravelSummary() {
+  const travel = estimateTeamTravelMiles();
+  teamTravelMiles.textContent = `${travel.miles.toLocaleString()} miles`;
+  teamTravelMeta.textContent = travel.visits
+    ? `Estimated from ${travel.visits.toLocaleString()} dated location visits, with multi-day trips routed together from Morton.`
+    : "Estimated team trail from Morton, Illinois.";
 }
 
-function renderTourFinds(tours = midwestTourFinds) {
-  tourList.innerHTML = "";
-  tours.slice(0, 7).forEach((tour) => {
-    const card = document.createElement("a");
-    card.className = "tour-card";
-    card.href = tour.url;
-    card.target = "_blank";
-    card.rel = "noopener noreferrer";
-    card.innerHTML = `
-      <span>${escapeHtml([tour.region, tour.dateLabel].filter(Boolean).join(" | "))}</span>
-      <strong>${escapeHtml(tour.title)}</strong>
-      <p>${escapeHtml(tour.note)}</p>
-    `;
-    tourList.appendChild(card);
+function estimateTeamTravelMiles() {
+  const visits = getTeamTravelVisits();
+  const trips = groupTeamTravelVisits(visits);
+  const miles = trips.reduce((total, trip) => total + estimateTripMiles(trip), 0);
+  return {
+    miles: Math.round(miles / 10) * 10,
+    visits: visits.length,
+    trips: trips.length,
+  };
+}
+
+function getTeamTravelVisits() {
+  const visits = new Map();
+  observations
+    .filter((obs) => obs.date && obs.latitude !== null && obs.longitude !== null)
+    .forEach((obs) => {
+      const key = `${obs.date}|${obs.latitude.toFixed(3)}|${obs.longitude.toFixed(3)}`;
+      if (!visits.has(key)) {
+        visits.set(key, {
+          date: obs.date,
+          latitude: obs.latitude,
+          longitude: obs.longitude,
+          location: obs.location || "Unlisted place",
+          members: new Set(),
+        });
+      }
+      visits.get(key).members.add(normalizeMemberName(obs.member));
+    });
+
+  return [...visits.values()].sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    return a.location.localeCompare(b.location);
   });
 }
 
-async function loadTourFinds({ announce = false } = {}) {
-  const endpoint = window.RSB_TOURS_ENDPOINT || "";
-  if (!endpoint) {
-    tourStatus.textContent = "Curated scout list";
-    tourMeta.textContent = "Live checking begins on the published Netlify site.";
+function groupTeamTravelVisits(visits) {
+  const trips = [];
+  visits.forEach((visit) => {
+    const currentTrip = trips[trips.length - 1];
+    if (!currentTrip) {
+      trips.push([visit]);
+      return;
+    }
+
+    const previous = currentTrip[currentTrip.length - 1];
+    const gapDays = daysBetween(previous.date, visit.date);
+    const legMiles = distanceMiles(previous, visit);
+    const previousFromHome = distanceMiles(MORTON_HOME, previous);
+    const visitFromHome = distanceMiles(MORTON_HOME, visit);
+    const sameDay = gapDays === 0;
+    const continuesLongTrip =
+      gapDays <= 4 && Math.max(previousFromHome, visitFromHome) >= 100 && legMiles <= 650;
+
+    if (sameDay || continuesLongTrip) {
+      currentTrip.push(visit);
+    } else {
+      trips.push([visit]);
+    }
+  });
+  return trips;
+}
+
+function estimateTripMiles(trip) {
+  const ordered = orderTripVisits(trip);
+  let miles = 0;
+  let previous = MORTON_HOME;
+  ordered.forEach((visit) => {
+    miles += distanceMiles(previous, visit);
+    previous = visit;
+  });
+  return miles + distanceMiles(previous, MORTON_HOME);
+}
+
+function orderTripVisits(trip) {
+  const byDate = new Map();
+  trip.forEach((visit) => {
+    if (!byDate.has(visit.date)) byDate.set(visit.date, []);
+    byDate.get(visit.date).push(visit);
+  });
+
+  const ordered = [];
+  let previous = MORTON_HOME;
+  [...byDate.keys()].sort().forEach((date) => {
+    const remaining = [...byDate.get(date)];
+    while (remaining.length) {
+      remaining.sort((a, b) => distanceMiles(previous, a) - distanceMiles(previous, b));
+      previous = remaining.shift();
+      ordered.push(previous);
+    }
+  });
+  return ordered;
+}
+
+function distanceMiles(a, b) {
+  const earthRadiusMiles = 3958.8;
+  const latitudeA = degreesToRadians(a.latitude);
+  const latitudeB = degreesToRadians(b.latitude);
+  const latitudeDelta = degreesToRadians(b.latitude - a.latitude);
+  const longitudeDelta = degreesToRadians(b.longitude - a.longitude);
+  const haversine =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(latitudeA) * Math.cos(latitudeB) * Math.sin(longitudeDelta / 2) ** 2;
+  return 2 * earthRadiusMiles * Math.asin(Math.sqrt(haversine));
+}
+
+function degreesToRadians(value) {
+  return (value * Math.PI) / 180;
+}
+
+function daysBetween(dateA, dateB) {
+  const start = new Date(`${dateA}T00:00:00Z`);
+  const end = new Date(`${dateB}T00:00:00Z`);
+  return Math.max(0, Math.round((end - start) / 86_400_000));
+}
+
+function renderNearbyTargetSightings() {
+  nearbyTargetsList.innerHTML = "";
+  if (!nearbyTargetSightings.length) {
+    nearbyTargetsList.innerHTML =
+      '<p class="nearby-targets__empty">Fresh nearby target birds will perch here when the eBird scout checks in.</p>';
     return;
   }
 
-  tourRefreshButton.disabled = true;
-  if (announce) tourStatus.textContent = "Checking the trail...";
+  const seenBySpecies = new Map(speciesGroups().map((group) => [getSpeciesId(group), group.members]));
+  const targets = nearbyTargetSightings
+    .map((sighting) => {
+      const seenBy = seenBySpecies.get(getSpeciesId(sighting)) || new Set();
+      const neededBy = teamSpeciesMembers.filter((member) => !seenBy.has(member));
+      return { ...sighting, neededBy };
+    })
+    .filter((sighting) => sighting.neededBy.length)
+    .sort((a, b) => {
+      if (a.neededBy.length !== b.neededBy.length) return a.neededBy.length - b.neededBy.length;
+      return (b.date || "").localeCompare(a.date || "");
+    })
+    .slice(0, 9);
+
+  if (!targets.length) {
+    nearbyTargetsList.innerHTML =
+      '<p class="nearby-targets__empty">Every recent nearby bird is already Team Complete. That is a lovely problem.</p>';
+    return;
+  }
+
+  targets.forEach((target) => {
+    const card = document.createElement(target.url ? "a" : "article");
+    card.className = "nearby-target";
+    if (target.url) {
+      card.href = target.url;
+      card.target = "_blank";
+      card.rel = "noopener noreferrer";
+    }
+    card.innerHTML = `
+      <div>
+        <strong>${escapeHtml(target.species)}</strong>
+        <span>${escapeHtml(target.location || "eBird location")}${target.date ? ` | ${escapeHtml(formatDate(target.date))}` : ""}</span>
+      </div>
+      <span class="needed-by" aria-label="Needed by ${escapeHtml(target.neededBy.join(", "))}">
+        ${target.neededBy
+          .map(
+            (member) =>
+              `<i class="needed-by__initial needed-by__initial--${getMemberColorClass(member)}" title="${escapeHtml(member)} needs this bird">${escapeHtml(member[0])}</i>`
+          )
+          .join("")}
+      </span>
+    `;
+    nearbyTargetsList.appendChild(card);
+  });
+}
+
+async function loadNearbyTargetSightings({ announce = false } = {}) {
+  const endpoint = window.RSB_NEARBY_TARGETS_ENDPOINT || "";
+  if (!endpoint) {
+    nearbyTargetsStatus.textContent = "Live site feature";
+    nearbyTargetsMeta.textContent = "The eBird scout checks in on the published site.";
+    return;
+  }
+
+  nearbyTargetsRefreshButton.disabled = true;
+  if (announce) nearbyTargetsStatus.textContent = "Checking eBird...";
 
   try {
-    const response = await fetchWithTimeout(`${endpoint}${announce ? `?refresh=${Date.now()}` : ""}`, {}, 12000);
+    const response = await fetchWithTimeout(`${endpoint}${announce ? `?refresh=${Date.now()}` : ""}`, {}, 15000);
     const data = await response.json();
-    if (!response.ok || !Array.isArray(data.tours) || !data.tours.length) {
-      throw new Error(data.error || "Tour scout did not return any trips.");
+    if (!response.ok || !Array.isArray(data.sightings)) {
+      const error = new Error(data.error || "The nearby eBird scout did not respond.");
+      error.setupRequired = Boolean(data.setupRequired);
+      throw error;
     }
 
-    renderTourFinds(data.tours);
-    tourStatus.textContent = `${data.tours.length} live leads`;
-    tourMeta.textContent = data.checkedAt
-      ? `Links checked ${formatDateTime(data.checkedAt)}. The scout refreshes regularly.`
-      : "Fresh Midwest trip leads from the tour scout.";
+    nearbyTargetSightings = data.sightings;
+    renderNearbyTargetSightings();
+    nearbyTargetsStatus.textContent = `${data.sightings.length} recent reports`;
+    nearbyTargetsMeta.textContent = data.checkedAt
+      ? `eBird reports within 30 miles over the last 30 days. Checked ${formatDateTime(data.checkedAt)}.`
+      : "eBird reports within 30 miles over the last 30 days.";
   } catch (error) {
-    renderTourFinds();
-    tourStatus.textContent = "Curated scout list";
-    tourMeta.textContent = "Live checking is resting; these seven official trip pages are still ready to explore.";
+    nearbyTargetsStatus.textContent = error.setupRequired ? "eBird key needed" : "Scout resting";
+    nearbyTargetsMeta.textContent = error.setupRequired
+      ? "Add the free eBird API key in Netlify to turn on live nearby targets."
+      : "The live eBird scout is resting. Try the refresh button in a moment.";
   } finally {
-    tourRefreshButton.disabled = false;
+    nearbyTargetsRefreshButton.disabled = false;
+  }
+}
+
+function renderAdventureFinds(sections = adventureFinds) {
+  Object.entries(adventureLists).forEach(([category, list]) => {
+    list.innerHTML = "";
+    (sections[category] || []).slice(0, 4).forEach((event) => {
+      const card = document.createElement("a");
+      card.className = "adventure-card";
+      card.href = event.url;
+      card.target = "_blank";
+      card.rel = "noopener noreferrer";
+      card.innerHTML = `
+        <span>${escapeHtml([event.region, event.dateLabel].filter(Boolean).join(" | "))}</span>
+        <strong>${escapeHtml(event.title)}</strong>
+        <p>${escapeHtml(event.note)}</p>
+      `;
+      list.appendChild(card);
+    });
+  });
+}
+
+async function loadAdventureFinds({ announce = false } = {}) {
+  const endpoint = window.RSB_TOURS_ENDPOINT || "";
+  if (!endpoint) {
+    adventureStatus.textContent = "Curated calendars";
+    adventureMeta.textContent = "Live link checking begins on the published site.";
+    return;
+  }
+
+  adventureRefreshButton.disabled = true;
+  if (announce) adventureStatus.textContent = "Checking the calendars...";
+
+  try {
+    const response = await fetchWithTimeout(`${endpoint}${announce ? `?refresh=${Date.now()}` : ""}`, {}, 15000);
+    const data = await response.json();
+    const sections = data.sections || (Array.isArray(data.tours) ? { ...adventureFinds, birding: data.tours } : null);
+    if (!response.ok || !sections) throw new Error(data.error || "Adventure scout did not return any events.");
+
+    renderAdventureFinds(sections);
+    const count = Object.values(sections).reduce((total, events) => total + events.length, 0);
+    adventureStatus.textContent = `${count} trail leads`;
+    adventureMeta.textContent = data.checkedAt
+      ? `Official pages checked ${formatDateTime(data.checkedAt)}. Dates can change, so confirm before traveling.`
+      : "Fresh leads from official event and expedition pages.";
+  } catch (error) {
+    renderAdventureFinds();
+    adventureStatus.textContent = "Curated calendars";
+    adventureMeta.textContent = "Live checking is resting; the saved official event links are still ready to explore.";
+  } finally {
+    adventureRefreshButton.disabled = false;
   }
 }
 
@@ -513,6 +767,7 @@ function calculateBirderTypeProfiles(members) {
     normalizedMembers.map((member) => {
       const memberObservations = observations.filter((obs) => normalizeMemberName(obs.member) === member);
       const uniqueSpecies = getUniqueLifeListSpecies(member);
+      const lifeListCount = getMemberLifeListCount(member);
       const mapped = memberObservations.filter((obs) => obs.latitude !== null && obs.longitude !== null);
       const places = new Set(mapped.map((obs) => obs.location || `${obs.latitude.toFixed(2)},${obs.longitude.toFixed(2)}`));
       const soloSpecies = uniqueSpecies.filter((obs) => speciesSeenBy.get(getSpeciesId(obs))?.size === 1);
@@ -533,7 +788,7 @@ function calculateBirderTypeProfiles(members) {
         {
           member,
           observations: memberObservations.length,
-          uniqueSpecies: uniqueSpecies.length,
+          uniqueSpecies: lifeListCount,
           places: places.size,
           soloSpecies: soloSpecies.length,
           latestDate: dates[dates.length - 1] || "",
@@ -643,6 +898,7 @@ function findSpeciesNameMatch(observationsToSearch, pattern) {
 function calculateFallbackBirderType(member) {
   const memberObservations = observations.filter((obs) => normalizeMemberName(obs.member) === member);
   const uniqueSpecies = getUniqueLifeListSpecies(member);
+  const lifeListCount = getMemberLifeListCount(member);
   if (!memberObservations.length) {
     return {
       type: "Whimsy Scout",
@@ -657,9 +913,9 @@ function calculateFallbackBirderType(member) {
   const hasRaptor = memberObservations.some((obs) => /hawk|eagle|falcon|kite|osprey|owl|vulture|harrier/i.test(obs.species));
   const hasWaterBird = memberObservations.some((obs) => /duck|goose|swan|heron|egret|rail|gull|tern|sandpiper|plover|pelican|cormorant|loon|grebe/i.test(obs.species));
   const hasWarbler = memberObservations.some((obs) => /warbler|vireo|kinglet|gnatcatcher/i.test(obs.species));
-  const speciesRatio = uniqueSpecies.length / Math.max(memberObservations.length, 1);
+  const speciesRatio = lifeListCount / Math.max(memberObservations.length, 1);
 
-  if (hasWarbler && uniqueSpecies.length >= 75) {
+  if (hasWarbler && lifeListCount >= 75) {
     return {
       type: "Warbler Whisperer",
       reason: `${member} is stacking delicate little leaf-movers into a serious life list.`,
@@ -677,7 +933,7 @@ function calculateFallbackBirderType(member) {
       reason: `${member} keeps turning shorelines, wetlands, and watery edges into bird evidence.`,
     };
   }
-  if (speciesRatio > 0.72 && uniqueSpecies.length >= 25) {
+  if (speciesRatio > 0.72 && lifeListCount >= 25) {
     return {
       type: "Life List Alchemist",
       reason: `${member} turns ordinary outings into fresh species at an impressive clip.`,
@@ -735,7 +991,7 @@ function renderProfileTrophyCase() {
           <h3 class="profile-card__name">${escapeHtml(member)}</h3>
           <p class="profile-card__meta">User ID: ${escapeHtml(userId)}</p>
         </div>
-        <span class="profile-card__count">${memberSpecies.length}</span>
+        <span class="profile-card__count">${getMemberLifeListCount(member)}</span>
       </div>
       <div class="badge-grid">${badgesMarkup}</div>
     `;
@@ -1282,6 +1538,7 @@ function getUniqueLifeListSpecies(member) {
   const firstBySpecies = new Map();
   observations
     .filter((obs) => normalizeMemberName(obs.member) === normalizeMemberName(member))
+    .filter(isLifeListEligible)
     .forEach((obs) => {
       const speciesId = getSpeciesId(obs);
       const current = firstBySpecies.get(speciesId);
@@ -1367,7 +1624,13 @@ function upsertMilestoneBadge(nextBadge) {
 }
 
 function getSpeciesId(obs) {
-  return normalizeKey(obs.scientific || obs.species);
+  const taxonId = normalizeKey(obs.scientific || obs.species);
+  return lifeListTaxonAliases[taxonId] || taxonId;
+}
+
+function isLifeListEligible(obs) {
+  const taxonId = normalizeKey(obs.scientific || obs.species);
+  return Boolean(taxonId) && !lifeListExcludedTaxa.has(taxonId);
 }
 
 function getUserId(member) {
