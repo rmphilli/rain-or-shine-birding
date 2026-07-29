@@ -2,7 +2,7 @@ const BAZAAR_STORAGE_KEY = "rainOrShineBazaarPreferences";
 const BAZAAR_SESSION_KEY = "rainOrShineBazaarView";
 const TEAM_SESSION_KEY = "rainOrShineSupabaseSession";
 
-const bazaarFinds = [
+const fallbackBazaarFinds = [
   {
     id: "storm-notebook",
     monogram: "FN",
@@ -148,6 +148,9 @@ const bazaarFinds = [
       "A cheerful camp mug for rain breaks and triumphant list recounts.",
   },
 ];
+const bazaarFinds = Array.isArray(window["RSB_BAZAAR_FINDS"])
+  ? window["RSB_BAZAAR_FINDS"]
+  : [];
 
 const bazaarElements = {
   disabled: /** @type {HTMLElement} */ (
@@ -365,7 +368,7 @@ function renderBazaar() {
 
   bazaarElements.grid.replaceChildren(...finds.map(createBazaarCard));
   bazaarElements.empty.hidden = finds.length > 0;
-  bazaarElements.resultCount.textContent = `${finds.length} preview ${finds.length === 1 ? "find" : "finds"}`;
+  bazaarElements.resultCount.textContent = `${finds.length} verified sale ${finds.length === 1 ? "find" : "finds"}`;
 }
 
 function createBazaarCard(find) {
@@ -390,18 +393,31 @@ function createBazaarCard(find) {
   vendor.textContent = find.vendor;
   meta.append(category, vendor);
   const title = document.createElement("h3");
-  title.textContent = find.name;
+  const dealLink = document.createElement("a");
+  dealLink.href = find.url;
+  dealLink.target = "_blank";
+  dealLink.rel = "noopener noreferrer";
+  dealLink.textContent = find.name;
+  title.appendChild(dealLink);
   const description = document.createElement("p");
   description.className = "bazaar-card__description";
   description.textContent = find.description;
   const price = document.createElement("p");
   price.className = "bazaar-card__price";
   const amount = document.createElement("strong");
-  amount.textContent = `$${find.price}`;
+  amount.textContent = formatBazaarPrice(find.price);
+  const regular = document.createElement("del");
+  regular.textContent = formatBazaarPrice(find.regularPrice);
   const saving = document.createElement("span");
-  saving.textContent = `${find.discount}% sample saving`;
-  price.append(amount, saving);
-  body.append(meta, title, description, price);
+  saving.textContent = `${find.discount}% off`;
+  price.append(amount, regular, saving);
+  const retailerLink = document.createElement("a");
+  retailerLink.className = "bazaar-card__retailer-link";
+  retailerLink.href = find.url;
+  retailerLink.target = "_blank";
+  retailerLink.rel = "noopener noreferrer";
+  retailerLink.textContent = `View at ${find.vendor}`;
+  body.append(meta, title, description, price, retailerLink);
 
   const actions = document.createElement("div");
   actions.className = "bazaar-card__actions";
@@ -425,6 +441,14 @@ function createBazaarCard(find) {
 
   card.append(art, body, actions);
   return card;
+}
+
+function formatBazaarPrice(value) {
+  return Number(value).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: Number(value) % 1 ? 2 : 0,
+  });
 }
 
 function loadBazaarPreferences() {

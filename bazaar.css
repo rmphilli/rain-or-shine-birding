@@ -308,6 +308,19 @@
   line-height: 1.25;
 }
 
+.bazaar-card h3 a {
+  color: inherit;
+  text-decoration-color: rgba(80, 111, 85, 0.42);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.bazaar-card h3 a:hover,
+.bazaar-card h3 a:focus-visible {
+  color: var(--moss);
+  text-decoration-color: currentColor;
+}
+
 .bazaar-card__description {
   min-height: 3.8em;
   margin-bottom: 14px;
@@ -318,6 +331,7 @@
 
 .bazaar-card__price {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 8px;
   margin-bottom: 0;
@@ -331,6 +345,22 @@
   color: var(--berry);
   font-size: 0.78rem;
   font-weight: 800;
+}
+
+.bazaar-card__price del {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.bazaar-card__retailer-link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  margin-top: 12px;
+  color: var(--moss);
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-underline-offset: 3px;
 }
 
 .bazaar-card__actions {

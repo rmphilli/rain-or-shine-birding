@@ -362,6 +362,116 @@ function setupBazaarEntryPoints() {
   document.querySelectorAll("[data-bazaar-entry]").forEach((entry) => {
     entry.hidden = !window.RSB_BAZAAR_ENABLED;
   });
+  if (window.RSB_BAZAAR_ENABLED) renderDashboardBazaar();
+}
+
+function renderDashboardBazaar() {
+  const grid = document.querySelector("#dashboardBazaarGrid");
+  if (!grid) return;
+  const finds = Array.isArray(window["RSB_BAZAAR_FINDS"]) ? window["RSB_BAZAAR_FINDS"] : [];
+  const verified = document.querySelector("#dashboardBazaarVerified");
+  if (verified && window["RSB_BAZAAR_VERIFIED_AT"]) {
+    verified.textContent = `Verified ${window["RSB_BAZAAR_VERIFIED_AT"]}`;
+  }
+
+  const preferences = loadDashboardBazaarPreferences();
+  grid.replaceChildren(
+    ...finds.map((find) => createDashboardBazaarCard(find, preferences, renderDashboardBazaar)),
+  );
+}
+
+function createDashboardBazaarCard(find, preferences, rerender) {
+  const card = document.createElement("article");
+  card.className = "bazaar-card";
+
+  const art = document.createElement("div");
+  art.className = "bazaar-card__art";
+  art.setAttribute("aria-hidden", "true");
+  const monogram = document.createElement("span");
+  monogram.className = "bazaar-card__monogram";
+  monogram.textContent = find.monogram;
+  art.appendChild(monogram);
+
+  const body = document.createElement("div");
+  body.className = "bazaar-card__body";
+  const meta = document.createElement("div");
+  meta.className = "bazaar-card__meta";
+  const category = document.createElement("span");
+  category.textContent = find.categoryLabel;
+  const vendor = document.createElement("span");
+  vendor.textContent = find.vendor;
+  meta.append(category, vendor);
+
+  const title = document.createElement("h3");
+  const dealLink = document.createElement("a");
+  dealLink.href = find.url;
+  dealLink.target = "_blank";
+  dealLink.rel = "noopener noreferrer";
+  dealLink.textContent = find.name;
+  title.appendChild(dealLink);
+
+  const description = document.createElement("p");
+  description.className = "bazaar-card__description";
+  description.textContent = find.description;
+
+  const price = document.createElement("p");
+  price.className = "bazaar-card__price";
+  const amount = document.createElement("strong");
+  amount.textContent = formatBazaarPrice(find.price);
+  const regular = document.createElement("del");
+  regular.textContent = formatBazaarPrice(find.regularPrice);
+  const saving = document.createElement("span");
+  saving.textContent = `${find.discount}% off`;
+  price.append(amount, regular, saving);
+
+  const retailerLink = document.createElement("a");
+  retailerLink.className = "bazaar-card__retailer-link";
+  retailerLink.href = find.url;
+  retailerLink.target = "_blank";
+  retailerLink.rel = "noopener noreferrer";
+  retailerLink.textContent = `View at ${find.vendor}`;
+  body.append(meta, title, description, price, retailerLink);
+
+  const actions = document.createElement("div");
+  actions.className = "bazaar-card__actions";
+  actions.setAttribute("aria-label", `Preference for ${find.name}`);
+  ["Watch", "Want", "Maybe", "Pass"].forEach((status) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = status;
+    button.setAttribute("aria-pressed", String(preferences.items[find.id] === status));
+    button.addEventListener("click", () => {
+      preferences.items[find.id] = preferences.items[find.id] === status ? "" : status;
+      localStorage.setItem("rainOrShineBazaarPreferences", JSON.stringify(preferences));
+      rerender();
+    });
+    actions.appendChild(button);
+  });
+
+  card.append(art, body, actions);
+  return card;
+}
+
+function loadDashboardBazaarPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("rainOrShineBazaarPreferences")) || {};
+    return {
+      search: saved.search || "",
+      category: saved.category || "all",
+      sort: saved.sort || "featured",
+      items: saved.items && typeof saved.items === "object" ? saved.items : {},
+    };
+  } catch {
+    return { search: "", category: "all", sort: "featured", items: {} };
+  }
+}
+
+function formatBazaarPrice(value) {
+  return Number(value).toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: Number(value) % 1 ? 2 : 0,
+  });
 }
 
 function parseCsv(text) {
@@ -696,7 +806,7 @@ function renderNearbyTargetSightings() {
       const neededBy = teamSpeciesMembers.filter((member) => !seenBy.has(member));
       return { ...sighting, seenBy: [...seenBy], neededBy };
     })
-    .filter((sighting) => sighting.seenBy.length && sighting.neededBy.length)
+    .filter((sighting) => sighting.neededBy.length)
     .sort((a, b) => {
       if (a.neededBy.length !== b.neededBy.length) return a.neededBy.length - b.neededBy.length;
       return (b.date || "").localeCompare(a.date || "");

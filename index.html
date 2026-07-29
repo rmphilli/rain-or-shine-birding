@@ -7,7 +7,8 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260728-5" />
+    <link rel="stylesheet" href="./styles.css?v=20260728-6" />
+    <link rel="stylesheet" href="./bazaar.css?v=20260728-2" />
   </head>
   <body>
     <header class="hero">
@@ -264,15 +265,6 @@
         <p id="adventureMeta" class="adventure-board__meta">Checking official event pages and expedition calendars.</p>
       </section>
 
-      <section data-bazaar-entry class="bazaar-preview" aria-labelledby="bazaarPreviewTitle" hidden>
-        <div>
-          <p class="eyebrow">A new field stop</p>
-          <h2 id="bazaarPreviewTitle">Rain or Shine Bazaar</h2>
-          <p>A quiet members-only market preview for trail gear, field tools, and curious team finds.</p>
-        </div>
-        <a class="bazaar-preview__link" href="./bazaar.html">Visit the Bazaar</a>
-      </section>
-
       <section class="birder-types" aria-labelledby="birderTypesTitle">
         <div class="panel__header">
           <div>
@@ -320,6 +312,57 @@
           </div>
         </div>
         <div id="profileTrophyCase" class="profile-grid"></div>
+      </section>
+
+      <section
+        data-bazaar-entry
+        class="dashboard-bazaar"
+        aria-labelledby="dashboardBazaarTitle"
+        hidden
+      >
+        <figure class="dashboard-bazaar__hero">
+          <picture>
+            <source
+              type="image/webp"
+              srcset="
+                ./assets/rain-or-shine-bazaar-960.webp   960w,
+                ./assets/rain-or-shine-bazaar-1600.webp 1600w
+              "
+              sizes="(max-width: 620px) calc(100vw - 40px), 960px"
+            />
+            <img
+              src="./assets/rain-or-shine-bazaar.jpg"
+              alt="Claymation Rain or Shine birders exploring a lively outdoor market with birds, friendly aliens, and a Bigfoot optics vendor"
+              width="1600"
+              height="900"
+              loading="lazy"
+              decoding="async"
+            />
+          </picture>
+        </figure>
+        <div class="dashboard-bazaar__heading">
+          <div>
+            <p class="eyebrow">Field-tested browsing</p>
+            <h2 id="dashboardBazaarTitle">Sale finds from the Rain or Shine Bazaar</h2>
+            <p>
+              Real discounts spotted at established outdoor and optics retailers. Prices and availability can
+              change, so the retailer's page gets the final word.
+            </p>
+          </div>
+          <div class="dashboard-bazaar__meta">
+            <span id="dashboardBazaarVerified">Verified July 28, 2026</span>
+            <a class="bazaar-preview__link" href="./bazaar.html">Open full Bazaar</a>
+          </div>
+        </div>
+        <div
+          id="dashboardBazaarGrid"
+          class="bazaar-grid bazaar-grid--dashboard"
+          aria-label="Verified outdoor sale finds"
+        ></div>
+        <p class="dashboard-bazaar__note">
+          Rain or Shine is not affiliated with these retailers. Deal links open in a new tab; Watch, Want, Maybe,
+          and Pass choices stay on this device.
+        </p>
       </section>
 
       <section class="team-species-section" aria-labelledby="teamSpeciesTitle">
@@ -399,6 +442,7 @@
     </main>
 
     <script src="./bazaar-config.js"></script>
+    <script src="./bazaar-catalog.js?v=20260728-1"></script>
     <script>
       window.RSB_CHAT_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/chatgpt";
       window.RSB_CONFIG_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/config";
@@ -407,6 +451,6 @@
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script src="./app.js?v=20260728-5"></script>
+    <script src="./app.js?v=20260728-6"></script>
   </body>
 </html>
