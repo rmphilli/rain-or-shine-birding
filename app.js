@@ -1177,7 +1177,7 @@ async function loadAdventureFinds({ announce = false } = {}) {
 
   try {
     const querySeparator = endpoint.includes("?") ? "&" : "?";
-    const requestUrl = `${endpoint}${querySeparator}version=20260728-2${announce ? `&refresh=${Date.now()}` : ""}`;
+    const requestUrl = `${endpoint}${querySeparator}version=20260729-1${announce ? `&refresh=${Date.now()}` : ""}`;
     const response = await fetchWithTimeout(requestUrl, {}, 15000);
     const data = await response.json();
     const sections = data.sections || (Array.isArray(data.tours) ? { ...adventureFinds, birding: data.tours } : null);
