@@ -87,23 +87,43 @@
 }
 
 .bazaar-hero {
+  position: relative;
+  isolation: isolate;
   overflow: hidden;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16 / 7.5;
   border: 1px solid rgba(34, 49, 45, 0.18);
   border-radius: 8px;
   background: #d9c8a2;
   box-shadow: var(--shadow);
 }
 
-.bazaar-hero picture,
+.bazaar-hero::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -18px;
+  background: url("./assets/rain-or-shine-bazaar-1600.webp") center / cover no-repeat;
+  filter: blur(14px) saturate(0.72);
+  opacity: 0.5;
+  transform: scale(1.04);
+}
+
+.bazaar-hero picture {
+  position: relative;
+  z-index: 1;
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+}
+
 .bazaar-hero img {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.bazaar-hero img {
-  object-fit: cover;
+  object-fit: contain;
   object-position: center;
 }
 
@@ -214,7 +234,7 @@
   min-width: 0;
   overflow: hidden;
   display: grid;
-  grid-template-rows: 130px 1fr auto;
+  grid-template-rows: 160px 1fr auto;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: rgba(251, 250, 244, 0.98);
@@ -229,6 +249,17 @@
   background:
     linear-gradient(145deg, rgba(143, 184, 201, 0.34), rgba(243, 201, 93, 0.3)),
     var(--mist);
+}
+
+.bazaar-card__image {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  object-fit: contain;
 }
 
 .bazaar-card:nth-child(3n + 2) .bazaar-card__art {
@@ -490,6 +521,10 @@
 
   .bazaar-hero {
     aspect-ratio: 16 / 9;
+  }
+
+  .bazaar-hero picture {
+    width: 100%;
   }
 
   .bazaar-intro {

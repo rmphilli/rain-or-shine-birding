@@ -377,11 +377,19 @@ function createBazaarCard(find) {
 
   const art = document.createElement("div");
   art.className = "bazaar-card__art";
-  art.setAttribute("aria-hidden", "true");
-  const monogram = document.createElement("span");
-  monogram.className = "bazaar-card__monogram";
-  monogram.textContent = find.monogram;
-  art.appendChild(monogram);
+  const productImage = document.createElement("img");
+  productImage.className = "bazaar-card__image";
+  productImage.src = find.image;
+  productImage.alt = find.imageAlt || find.name;
+  productImage.loading = "lazy";
+  productImage.decoding = "async";
+  productImage.addEventListener("error", () => {
+    const monogram = document.createElement("span");
+    monogram.className = "bazaar-card__monogram";
+    monogram.textContent = find.monogram;
+    art.replaceChildren(monogram);
+  });
+  art.appendChild(productImage);
 
   const body = document.createElement("div");
   body.className = "bazaar-card__body";

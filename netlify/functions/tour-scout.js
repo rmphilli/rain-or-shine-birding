@@ -1,3 +1,8 @@
+const PROHIBITED_EVENT_TOPICS =
+  /\b(?:astrology|demon(?:ic|ology)?|exorcism|ghost(?:ly)?|goatman|haunt(?:ed|ing)?|mediumship|necromancy|occult|pagan(?:ism)?|psychic medium|ritual|satan(?:ic|ism)?|s[eé]ance|spell(?:craft)?|spiritualism|tarot|wicca(?:n)?|witch(?:craft|es)?)\b/i;
+const ALLOWED_ALIEN_AND_PSI_TOPICS =
+  /\b(?:alien|extraterrestrial|mindsight|precognition|psi|psychokinesis|remote viewing|seti|uap|ufo)\b/i;
+
 const EVENT_SOURCES = {
   birding: [
     {
@@ -83,14 +88,6 @@ const EVENT_SOURCES = {
       expiresAt: "2026-09-28",
     },
     {
-      title: "Goatman Festival",
-      region: "Louisville, Kentucky",
-      dateLabel: "Oct 15-18, 2026",
-      note: "A free cryptid gathering with Bigfoot researchers, special tours, films, music, and a creature market.",
-      url: "https://goatmanfest.com/",
-      expiresAt: "2026-10-20",
-    },
-    {
       title: "Illinois BFRO Expedition",
       region: "Illinois field location",
       dateLabel: "Sep 10-13, 2026",
@@ -125,36 +122,28 @@ const EVENT_SOURCES = {
       expiresAt: "2026-12-31",
     },
     {
-      title: "Lake Superior Paranormal Convention",
-      region: "Thunder Bay, Ontario",
-      dateLabel: "Oct 16-17, 2026",
-      note: "Speakers, workshops, and an optional after-dark investigation at Fort William.",
-      url: "https://www.lakesuperiorparacon.com/tickets",
-      expiresAt: "2026-10-19",
-    },
-    {
-      title: "Halifax Paranormal Symposium",
-      region: "Halifax, Nova Scotia",
+      title: "IRVA Remote Viewing Conference",
+      region: "Dayton, Ohio",
       dateLabel: "Oct 2026",
-      note: "Two days of paranormal research, workshops, vendors, psychics, and curious minds.",
-      url: "https://www.hfxparanormal.com/",
+      note: "Three days of remote viewing research, practical experiments, and shared learning.",
+      url: "https://www.irvaconference.com/",
       expiresAt: "2026-11-02",
     },
     {
-      title: "Extraterrestrials: Conscious Universe",
-      region: "Prague or live stream",
-      dateLabel: "Nov 13-15, 2026",
-      note: "An international conference on UFOs, contact, consciousness, history, and spirituality.",
-      url: "https://www.ufokonference.cz/en/",
-      expiresAt: "2026-11-17",
+      title: "Exeter UFO Festival",
+      region: "Exeter, New Hampshire",
+      dateLabel: "Sep 5-6, 2026",
+      note: "A community UFO weekend built around the historic Exeter sighting, speakers, and skyward curiosity.",
+      url: "https://exeterufofestival.org/",
+      expiresAt: "2026-09-08",
     },
     {
-      title: "Great Lakes Paranormal Convention",
-      region: "New Baltimore, Michigan",
-      dateLabel: "Aug 15-16, 2026",
-      note: "Investigators, authors, vendors, and hands-on paranormal sessions near the Great Lakes.",
-      url: "https://www.michigan.org/event/great-lakes-paranormal-convention-0",
-      expiresAt: "2026-08-18",
+      title: "IAC SETI Symposium",
+      region: "Antalya, Turkiye",
+      dateLabel: "Oct 5-9, 2026",
+      note: "A scientific SETI symposium within the International Astronautical Congress, focused on the search for extraterrestrial intelligence.",
+      url: "https://www.iac2026.org/iac-2026",
+      expiresAt: "2026-10-12",
     },
     {
       title: "MUFON International Symposium",
@@ -163,14 +152,6 @@ const EVENT_SOURCES = {
       note: "A major UFO research gathering with investigators, case studies, speakers, and skyward questions.",
       url: "https://mufonsymposium.com/",
       expiresAt: "2026-09-01",
-    },
-    {
-      title: "Ghostly Great Lakes Weekend",
-      region: "Sault Ste. Marie, Michigan",
-      dateLabel: "Aug 28-29, 2026",
-      note: "Michigan Paracon speakers and investigations gathered beside the locks and old waterfront.",
-      url: "https://saultstemarie.com/event/ghostly-great-lakes-weekend/",
-      expiresAt: "2026-08-31",
     },
     {
       title: "IFEX SETI & UAP Conference",
@@ -189,7 +170,9 @@ exports.handler = async () => {
 
   await Promise.all(
     Object.entries(EVENT_SOURCES).map(async ([category, sources]) => {
-      const candidates = sources.filter((event) => event.expiresAt >= today);
+      const candidates = sources.filter(
+        (event) => event.expiresAt >= today && isEventAllowed(event, category)
+      );
       const checks = await Promise.all(candidates.map(checkEventSource));
       const ordered = checks.filter((event) => event.reachable).concat(checks.filter((event) => !event.reachable));
       sections[category] = ordered.slice(0, 7).map(({ reachable, expiresAt, ...event }) => event);
@@ -201,6 +184,14 @@ exports.handler = async () => {
     checkedAt: new Date().toISOString(),
   });
 };
+
+function isEventAllowed(event, category) {
+  const searchableText = [event.title, event.region, event.dateLabel, event.note, event.url]
+    .filter(Boolean)
+    .join(" ");
+  if (PROHIBITED_EVENT_TOPICS.test(searchableText)) return false;
+  return category !== "paranormal" || ALLOWED_ALIEN_AND_PSI_TOPICS.test(searchableText);
+}
 
 async function checkEventSource(event) {
   const controller = new AbortController();

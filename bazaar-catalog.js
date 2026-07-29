@@ -4,6 +4,8 @@
     {
       id: "leupold-bx2-8x42",
       monogram: "8x",
+      image: "./assets/bazaar/leupold-bx2.jpg",
+      imageAlt: "Leupold BX-2 Alpine HD 8x42 binoculars",
       name: "Leupold BX-2 Alpine HD 8x42 Binoculars",
       category: "optics",
       categoryLabel: "Birding optics",
@@ -18,6 +20,8 @@
     {
       id: "nikon-prostaff-p3-8x42",
       monogram: "P3",
+      image: "./assets/bazaar/nikon-prostaff-p3.jpg",
+      imageAlt: "Nikon PROSTAFF P3 8x42 binoculars",
       name: "Nikon PROSTAFF P3 8x42 Binoculars",
       category: "optics",
       categoryLabel: "Birding optics",
@@ -32,6 +36,8 @@
     {
       id: "rei-650-down-jacket",
       monogram: "650",
+      image: "./assets/bazaar/rei-650-down.jpg",
+      imageAlt: "REI Co-op 650 men's down jacket",
       name: "REI Co-op 650 Down Jacket - Men's",
       category: "outerwear",
       categoryLabel: "Warm layers",
@@ -46,6 +52,8 @@
     {
       id: "patagonia-synchilla-snap-t",
       monogram: "ST",
+      image: "./assets/bazaar/patagonia-synchilla.jpg",
+      imageAlt: "Patagonia Lightweight Synchilla Snap-T fleece pullover",
       name: "Patagonia Lightweight Synchilla Snap-T Pullover",
       category: "outerwear",
       categoryLabel: "Warm layers",
@@ -60,6 +68,8 @@
     {
       id: "patagonia-r1-thermal",
       monogram: "R1",
+      image: "./assets/bazaar/patagonia-r1-thermal.jpg",
+      imageAlt: "Patagonia R1 Thermal men's fleece jacket",
       name: "Patagonia R1 Thermal Fleece Jacket - Men's",
       category: "outerwear",
       categoryLabel: "Warm layers",
@@ -74,6 +84,8 @@
     {
       id: "columbia-pouration-ii",
       monogram: "PJ",
+      image: "./assets/bazaar/columbia-pouration-ii.jpg",
+      imageAlt: "Columbia Pouration II men's rain jacket",
       name: "Columbia Pouration II Rain Jacket - Men's",
       category: "outerwear",
       categoryLabel: "Rain gear",
@@ -88,6 +100,8 @@
     {
       id: "osprey-daylite-waist-pack",
       monogram: "2L",
+      image: "./assets/bazaar/osprey-daylite-waist.jpg",
+      imageAlt: "Osprey Daylite limited-edition waist pack",
       name: "Osprey Daylite Waist Pack Limited Edition",
       category: "packs",
       categoryLabel: "Trail carry",
@@ -102,6 +116,8 @@
     {
       id: "osprey-arcane-earth-large-day",
       monogram: "21L",
+      image: "./assets/bazaar/osprey-arcane-large.jpg",
+      imageAlt: "Osprey Arcane large day backpack",
       name: "Osprey Arcane Earth Large Day Backpack",
       category: "packs",
       categoryLabel: "Trail carry",

@@ -1236,13 +1236,13 @@ input[type="search"] {
   display: grid;
   flex: 1;
   gap: 8px;
-  grid-auto-rows: minmax(82px, 1fr);
+  grid-auto-rows: minmax(106px, 1fr);
 }
 
 .nearby-target {
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr) auto;
-  gap: 10px;
+  grid-template-columns: clamp(108px, 22%, 136px) minmax(0, 1fr) auto;
+  gap: 12px;
   align-items: center;
   border: 1px solid rgba(34, 49, 45, 0.1);
   border-radius: 8px;
@@ -1254,8 +1254,9 @@ input[type="search"] {
 
 .nearby-target__photo {
   position: relative;
-  align-self: stretch;
-  min-height: 64px;
+  width: 100%;
+  min-height: 88px;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   border-radius: 7px;
   background:
@@ -1268,10 +1269,10 @@ input[type="search"] {
 .nearby-target__photo::before {
   content: "";
   position: absolute;
-  left: 18px;
-  top: 22px;
-  width: 28px;
-  height: 19px;
+  left: 32%;
+  top: 39%;
+  width: 38%;
+  height: 29%;
   border-radius: 55% 45% 48% 52%;
   background: currentColor;
   transform: rotate(-8deg);
@@ -1280,10 +1281,10 @@ input[type="search"] {
 .nearby-target__photo::after {
   content: "";
   position: absolute;
-  left: 41px;
-  top: 18px;
-  width: 12px;
-  height: 10px;
+  left: 62%;
+  top: 34%;
+  width: 17%;
+  height: 16%;
   border-radius: 50%;
   background: currentColor;
   box-shadow: 8px 2px 0 -3px currentColor;
@@ -1295,7 +1296,7 @@ input[type="search"] {
   display: block;
   width: 100%;
   height: 100%;
-  min-height: 64px;
+  min-height: 88px;
   object-fit: cover;
 }
 
@@ -1562,24 +1563,44 @@ input[type="search"] {
 }
 
 .dashboard-bazaar__hero {
-  width: min(100%, 960px);
+  position: relative;
+  isolation: isolate;
+  width: 100%;
   margin: 0 auto;
   overflow: hidden;
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 16 / 7.5;
   border: 1px solid rgba(34, 49, 45, 0.16);
   border-radius: 8px;
   background: #d9c8a2;
   box-shadow: 0 12px 30px rgba(27, 43, 39, 0.13);
 }
 
-.dashboard-bazaar__hero picture,
+.dashboard-bazaar__hero::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: -18px;
+  background: url("./assets/rain-or-shine-bazaar-1600.webp") center / cover no-repeat;
+  filter: blur(14px) saturate(0.72);
+  opacity: 0.5;
+  transform: scale(1.04);
+}
+
+.dashboard-bazaar__hero picture {
+  position: relative;
+  z-index: 1;
+  display: block;
+  height: 100%;
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+}
+
 .dashboard-bazaar__hero img {
   display: block;
   width: 100%;
   height: 100%;
-}
-
-.dashboard-bazaar__hero img {
   object-fit: contain;
 }
 
@@ -2431,7 +2452,16 @@ th {
   }
 
   .nearby-target {
-    grid-template-columns: 58px minmax(0, 1fr) auto;
+    grid-template-columns: 94px minmax(0, 1fr) auto;
+    gap: 10px;
+  }
+
+  .dashboard-bazaar__hero {
+    aspect-ratio: 16 / 9;
+  }
+
+  .dashboard-bazaar__hero picture {
+    width: 100%;
   }
 
   .auth-form {

@@ -40,7 +40,7 @@ Do not use the longer `/rest/v1/` URL there. The app now trims that if it happen
 - Refreshes expired sign-ins automatically and reloads shared data when a teammate returns to the page.
 - Adds a refresh button to reload the shared Supabase data immediately.
 - Adds a publish button to move this browser's locally saved uploads into Supabase after sign-in.
-- Shows three adventure calendars for birding, Bigfoot, and paranormal or psi events.
+- Shows three adventure calendars for birding, Bigfoot, and vetted extraterrestrial or psi events.
 - Uses the eBird API to find recent team target birds reported within 30 miles of Morton.
 - Estimates the team's combined trail mileage from dated, mapped observations while grouping nearby stops into trips.
 - Uses a Netlify function for ChatGPT, so the OpenAI key is not exposed in browser code.

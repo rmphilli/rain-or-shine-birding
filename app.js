@@ -30,6 +30,10 @@ const memberLifeListDisplayOverrides = {
   // The raw export remains untouched. Apply only while Matt's canonical total is the known 233-to-232 mismatch.
   Matt: { canonicalCount: 233, displayCount: 232 },
 };
+const prohibitedAdventureTopics =
+  /\b(?:astrology|demon(?:ic|ology)?|exorcism|ghost(?:ly)?|goatman|haunt(?:ed|ing)?|mediumship|necromancy|occult|pagan(?:ism)?|psychic medium|ritual|satan(?:ic|ism)?|s[eé]ance|spell(?:craft)?|spiritualism|tarot|wicca(?:n)?|witch(?:craft|es)?)\b/i;
+const allowedAlienAndPsiTopics =
+  /\b(?:alien|extraterrestrial|mindsight|precognition|psi|psychokinesis|remote viewing|seti|uap|ufo)\b/i;
 const adventureFinds = {
   birding: [
     {
@@ -105,13 +109,6 @@ const adventureFinds = {
       url: "https://www.indianabigfootconference.com/",
     },
     {
-      title: "Goatman Festival",
-      region: "Louisville, Kentucky",
-      dateLabel: "Oct 15-18, 2026",
-      note: "A free cryptid gathering with Bigfoot researchers, special tours, films, music, and a creature market.",
-      url: "https://goatmanfest.com/",
-    },
-    {
       title: "Illinois BFRO Expedition",
       region: "Illinois field location",
       dateLabel: "Sep 10-13, 2026",
@@ -142,32 +139,25 @@ const adventureFinds = {
       url: "https://psigamesinternational.com/",
     },
     {
-      title: "Lake Superior Paranormal Convention",
-      region: "Thunder Bay, Ontario",
-      dateLabel: "Oct 16-17, 2026",
-      note: "Speakers, workshops, and an optional after-dark investigation at Fort William.",
-      url: "https://www.lakesuperiorparacon.com/tickets",
-    },
-    {
-      title: "Halifax Paranormal Symposium",
-      region: "Halifax, Nova Scotia",
+      title: "IRVA Remote Viewing Conference",
+      region: "Dayton, Ohio",
       dateLabel: "Oct 2026",
-      note: "Two days of paranormal research, workshops, vendors, psychics, and curious minds.",
-      url: "https://www.hfxparanormal.com/",
+      note: "Three days of remote viewing research, practical experiments, and shared learning.",
+      url: "https://www.irvaconference.com/",
     },
     {
-      title: "Extraterrestrials: Conscious Universe",
-      region: "Prague or live stream",
-      dateLabel: "Nov 13-15, 2026",
-      note: "An international conference on UFOs, contact, consciousness, history, and spirituality.",
-      url: "https://www.ufokonference.cz/en/",
+      title: "Exeter UFO Festival",
+      region: "Exeter, New Hampshire",
+      dateLabel: "Sep 5-6, 2026",
+      note: "A community UFO weekend built around the historic Exeter sighting, speakers, and skyward curiosity.",
+      url: "https://exeterufofestival.org/",
     },
     {
-      title: "Great Lakes Paranormal Convention",
-      region: "New Baltimore, Michigan",
-      dateLabel: "Aug 15-16, 2026",
-      note: "Investigators, authors, vendors, and hands-on paranormal sessions near the Great Lakes.",
-      url: "https://www.michigan.org/event/great-lakes-paranormal-convention-0",
+      title: "IAC SETI Symposium",
+      region: "Antalya, Turkiye",
+      dateLabel: "Oct 5-9, 2026",
+      note: "A scientific SETI symposium within the International Astronautical Congress, focused on the search for extraterrestrial intelligence.",
+      url: "https://www.iac2026.org/iac-2026",
     },
     {
       title: "MUFON International Symposium",
@@ -175,13 +165,6 @@ const adventureFinds = {
       dateLabel: "Aug 27-30, 2026",
       note: "A major UFO research gathering with investigators, case studies, speakers, and skyward questions.",
       url: "https://mufonsymposium.com/",
-    },
-    {
-      title: "Ghostly Great Lakes Weekend",
-      region: "Sault Ste. Marie, Michigan",
-      dateLabel: "Aug 28-29, 2026",
-      note: "Michigan Paracon speakers and investigations gathered beside the locks and old waterfront.",
-      url: "https://saultstemarie.com/event/ghostly-great-lakes-weekend/",
     },
     {
       title: "IFEX SETI & UAP Conference",
@@ -260,9 +243,7 @@ let birdMapBounds = [];
 let birdMapSelectedMarker = null;
 let ambientAudioContext = null;
 let ambientMasterGain = null;
-let ambientRainSources = [];
 let ambientRainDropTimer = null;
-let ambientRainSwellTimer = null;
 let ambientBirdTimer = null;
 
 const aliases = {
@@ -386,11 +367,19 @@ function createDashboardBazaarCard(find, preferences, rerender) {
 
   const art = document.createElement("div");
   art.className = "bazaar-card__art";
-  art.setAttribute("aria-hidden", "true");
-  const monogram = document.createElement("span");
-  monogram.className = "bazaar-card__monogram";
-  monogram.textContent = find.monogram;
-  art.appendChild(monogram);
+  const productImage = document.createElement("img");
+  productImage.className = "bazaar-card__image";
+  productImage.src = find.image;
+  productImage.alt = find.imageAlt || find.name;
+  productImage.loading = "lazy";
+  productImage.decoding = "async";
+  productImage.addEventListener("error", () => {
+    const monogram = document.createElement("span");
+    monogram.className = "bazaar-card__monogram";
+    monogram.textContent = find.monogram;
+    art.replaceChildren(monogram);
+  });
+  art.appendChild(productImage);
 
   const body = document.createElement("div");
   body.className = "bazaar-card__body";
@@ -959,20 +948,31 @@ async function loadNearbyTargetSightings({ announce = false } = {}) {
 function renderAdventureFinds(sections = adventureFinds) {
   Object.entries(adventureLists).forEach(([category, list]) => {
     list.innerHTML = "";
-    (sections[category] || []).slice(0, 7).forEach((event) => {
-      const card = document.createElement("a");
-      card.className = "adventure-card";
-      card.href = event.url;
-      card.target = "_blank";
-      card.rel = "noopener noreferrer";
-      card.innerHTML = `
-        <span>${escapeHtml([event.region, event.dateLabel].filter(Boolean).join(" | "))}</span>
-        <strong>${escapeHtml(event.title)}</strong>
-        <p>${escapeHtml(event.note)}</p>
-      `;
-      list.appendChild(card);
-    });
+    (sections[category] || [])
+      .filter((event) => isAdventureEventAllowed(event, category))
+      .slice(0, 7)
+      .forEach((event) => {
+        const card = document.createElement("a");
+        card.className = "adventure-card";
+        card.href = event.url;
+        card.target = "_blank";
+        card.rel = "noopener noreferrer";
+        card.innerHTML = `
+          <span>${escapeHtml([event.region, event.dateLabel].filter(Boolean).join(" | "))}</span>
+          <strong>${escapeHtml(event.title)}</strong>
+          <p>${escapeHtml(event.note)}</p>
+        `;
+        list.appendChild(card);
+      });
   });
+}
+
+function isAdventureEventAllowed(event, category) {
+  const searchableText = [event.title, event.region, event.dateLabel, event.note, event.url]
+    .filter(Boolean)
+    .join(" ");
+  if (prohibitedAdventureTopics.test(searchableText)) return false;
+  return category !== "paranormal" || allowedAlienAndPsiTopics.test(searchableText);
 }
 
 function setupAmbientSound() {
@@ -997,7 +997,7 @@ function setupAmbientSound() {
       startLightRain(ambientAudioContext);
       scheduleBirdChirp();
       ambienceToggle.setAttribute("aria-pressed", "true");
-      ambienceToggleLabel.textContent = "Ambience on";
+      ambienceToggleLabel.textContent = "Gentle rain + birds";
     } catch {
       stopAmbientSound();
       ambienceToggleLabel.textContent = "Try sound again";
@@ -1011,111 +1011,45 @@ function startLightRain(context) {
   ambientMasterGain = context.createGain();
   ambientMasterGain.gain.value = 0.72;
   ambientMasterGain.connect(context.destination);
-
-  const rainBed = createPinkRainBuffer(context, 5);
-  [
-    { high: 260, low: 2200, gain: 0.026, rate: 0.91 },
-    { high: 700, low: 3900, gain: 0.012, rate: 1.07 },
-  ].forEach((layer) => {
-    const source = context.createBufferSource();
-    const highPass = context.createBiquadFilter();
-    const lowPass = context.createBiquadFilter();
-    const gain = context.createGain();
-    source.buffer = rainBed;
-    source.loop = true;
-    source.playbackRate.value = layer.rate;
-    highPass.type = "highpass";
-    highPass.frequency.value = layer.high;
-    lowPass.type = "lowpass";
-    lowPass.frequency.value = layer.low;
-    gain.gain.value = layer.gain;
-    source.connect(highPass).connect(lowPass).connect(gain).connect(ambientMasterGain);
-    source.start(context.currentTime, Math.random() * 3);
-    ambientRainSources.push({ source, gain });
-  });
-
   scheduleRainDrops();
-  scheduleRainSwell();
-}
-
-function createPinkRainBuffer(context, seconds) {
-  const buffer = context.createBuffer(1, context.sampleRate * seconds, context.sampleRate);
-  const data = buffer.getChannelData(0);
-  let b0 = 0;
-  let b1 = 0;
-  let b2 = 0;
-  let b3 = 0;
-  let b4 = 0;
-  let b5 = 0;
-  let b6 = 0;
-  for (let index = 0; index < data.length; index += 1) {
-    const white = Math.random() * 2 - 1;
-    b0 = 0.99886 * b0 + white * 0.0555179;
-    b1 = 0.99332 * b1 + white * 0.0750759;
-    b2 = 0.969 * b2 + white * 0.153852;
-    b3 = 0.8665 * b3 + white * 0.3104856;
-    b4 = 0.55 * b4 + white * 0.5329522;
-    b5 = -0.7616 * b5 - white * 0.016898;
-    const pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
-    b6 = white * 0.115926;
-    data[index] = pink * 0.085;
-  }
-  return buffer;
 }
 
 function scheduleRainDrops() {
   if (!ambientAudioContext) return;
   ambientRainDropTimer = window.setTimeout(() => {
-    const drops = 1 + Math.floor(Math.random() * 3);
+    const drops = 2 + Math.floor(Math.random() * 4);
     for (let index = 0; index < drops; index += 1) {
-      playRainDrop(index * (0.035 + Math.random() * 0.06));
+      playRainDrop(index * (0.035 + Math.random() * 0.085));
     }
     scheduleRainDrops();
-  }, 180 + Math.random() * 520);
+  }, 280 + Math.random() * 680);
 }
 
 function playRainDrop(delay = 0) {
   const context = ambientAudioContext;
   if (!context || context.state === "closed" || !ambientMasterGain) return;
   const now = context.currentTime + delay;
-  const duration = 0.045 + Math.random() * 0.08;
+  const duration = 0.045 + Math.random() * 0.075;
   const oscillator = context.createOscillator();
   const gain = context.createGain();
-  const filter = context.createBiquadFilter();
   const panner = typeof context.createStereoPanner === "function" ? context.createStereoPanner() : null;
-  const frequency = 1100 + Math.random() * 2200;
+  const startFrequency = 1600 + Math.random() * 1900;
+  const endFrequency = startFrequency * (0.38 + Math.random() * 0.2);
 
-  oscillator.type = Math.random() > 0.5 ? "sine" : "triangle";
-  oscillator.frequency.setValueAtTime(frequency, now);
-  oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.58, now + duration);
-  filter.type = "bandpass";
-  filter.frequency.value = frequency;
-  filter.Q.value = 0.8;
+  oscillator.type = Math.random() > 0.18 ? "sine" : "triangle";
+  oscillator.frequency.setValueAtTime(startFrequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(endFrequency, now + duration);
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.0025 + Math.random() * 0.0045, now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0011 + Math.random() * 0.0018, now + 0.006);
   gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
   if (panner) {
     panner.pan.value = Math.random() * 1.5 - 0.75;
-    oscillator.connect(filter).connect(gain).connect(panner).connect(ambientMasterGain);
+    oscillator.connect(gain).connect(panner).connect(ambientMasterGain);
   } else {
-    oscillator.connect(filter).connect(gain).connect(ambientMasterGain);
+    oscillator.connect(gain).connect(ambientMasterGain);
   }
   oscillator.start(now);
   oscillator.stop(now + duration + 0.02);
-}
-
-function scheduleRainSwell() {
-  if (!ambientAudioContext || !ambientRainSources.length) return;
-  ambientRainSwellTimer = window.setTimeout(() => {
-    const now = ambientAudioContext.currentTime;
-    ambientRainSources.forEach(({ gain }, index) => {
-      const target = index === 0 ? 0.021 + Math.random() * 0.01 : 0.009 + Math.random() * 0.007;
-      gain.gain.cancelScheduledValues(now);
-      gain.gain.setValueAtTime(gain.gain.value, now);
-      gain.gain.linearRampToValueAtTime(target, now + 3.5);
-    });
-    scheduleRainSwell();
-  }, 4500 + Math.random() * 3500);
 }
 
 function scheduleBirdChirp() {
@@ -1123,15 +1057,26 @@ function scheduleBirdChirp() {
   ambientBirdTimer = window.setTimeout(() => {
     playBirdChirp();
     scheduleBirdChirp();
-  }, 2800 + Math.random() * 4800);
+  }, 1500 + Math.random() * 2800);
 }
 
 function playBirdChirp() {
   const context = ambientAudioContext;
   if (!context || context.state === "closed" || !ambientMasterGain) return;
   const now = context.currentTime;
-  const calls = [playRobinPhrase, playWarblerTrill, playChickadeeCall, playDoveCoo];
+  const calls = [
+    playRobinPhrase,
+    playWarblerTrill,
+    playChickadeeCall,
+    playDoveCoo,
+    playCardinalWhistle,
+    playWrenCascade,
+    playBluebirdPhrase,
+  ];
   calls[Math.floor(Math.random() * calls.length)](context, now);
+  if (Math.random() < 0.3) {
+    calls[Math.floor(Math.random() * calls.length)](context, now + 0.8 + Math.random() * 0.65);
+  }
 }
 
 function playRobinPhrase(context, now) {
@@ -1161,6 +1106,26 @@ function playDoveCoo(context, now) {
   playBirdTone(context, now + 0.77, 405, 355, 0.36, 0.009, "sine");
 }
 
+function playCardinalWhistle(context, now) {
+  [0, 0.36, 0.72].forEach((offset, index) => {
+    const start = 1450 + index * 80;
+    playBirdTone(context, now + offset, start, 2580 + index * 110, 0.28, 0.014, "sine");
+  });
+}
+
+function playWrenCascade(context, now) {
+  for (let index = 0; index < 10; index += 1) {
+    const start = 2450 + Math.random() * 850;
+    playBirdTone(context, now + index * 0.055, start, start * 0.82, 0.045, 0.008, "triangle");
+  }
+}
+
+function playBluebirdPhrase(context, now) {
+  [1850, 2160, 1980, 2380].forEach((frequency, index) => {
+    playBirdTone(context, now + index * 0.14, frequency, frequency * 0.91, 0.1, 0.01, "sine");
+  });
+}
+
 function playBirdTone(context, now, startFrequency, endFrequency, duration, volume, type) {
   const oscillator = context.createOscillator();
   const gain = context.createGain();
@@ -1188,18 +1153,8 @@ function playBirdTone(context, now, startFrequency, endFrequency, duration, volu
 function stopAmbientSound() {
   if (ambientBirdTimer) window.clearTimeout(ambientBirdTimer);
   if (ambientRainDropTimer) window.clearTimeout(ambientRainDropTimer);
-  if (ambientRainSwellTimer) window.clearTimeout(ambientRainSwellTimer);
   ambientBirdTimer = null;
   ambientRainDropTimer = null;
-  ambientRainSwellTimer = null;
-  ambientRainSources.forEach(({ source }) => {
-    try {
-      source.stop();
-    } catch {
-      // It may already be stopped as the audio context closes.
-    }
-  });
-  ambientRainSources = [];
   ambientMasterGain = null;
   if (ambientAudioContext && ambientAudioContext.state !== "closed") ambientAudioContext.close();
   ambientAudioContext = null;
@@ -1228,8 +1183,14 @@ async function loadAdventureFinds({ announce = false } = {}) {
     const sections = data.sections || (Array.isArray(data.tours) ? { ...adventureFinds, birding: data.tours } : null);
     if (!response.ok || !sections) throw new Error(data.error || "Adventure scout did not return any events.");
 
-    renderAdventureFinds(sections);
-    const count = Object.values(sections).reduce((total, events) => total + events.length, 0);
+    const safeSections = Object.fromEntries(
+      Object.entries(sections).map(([category, events]) => [
+        category,
+        (events || []).filter((event) => isAdventureEventAllowed(event, category)),
+      ])
+    );
+    renderAdventureFinds(safeSections);
+    const count = Object.values(safeSections).reduce((total, events) => total + events.length, 0);
     adventureStatus.textContent = `${count} trail leads`;
     adventureMeta.textContent = data.checkedAt
       ? `Official pages checked ${formatDateTime(data.checkedAt)}. Dates can change, so confirm before traveling.`
