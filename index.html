@@ -5,7 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Rain or Shine Birding Team</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260728-3" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260728-4" />
   </head>
   <body>
     <header class="hero">
@@ -102,36 +104,75 @@
 
       <section class="workspace">
         <div class="panel map-panel">
-          <div class="panel__header">
+          <div class="panel__header map-panel__header">
             <div>
               <p class="eyebrow">Shared trail</p>
               <h2>Where the team has birded</h2>
             </div>
-            <select id="memberFilter" aria-label="Filter map by member">
-              <option value="all">Everyone</option>
-            </select>
+            <label class="expedition-filter">
+              <span>Expedition view</span>
+              <select id="memberFilter" aria-label="Filter expedition map by birder">
+                <option value="all">Everyone</option>
+              </select>
+            </label>
           </div>
-          <div class="travel-summary" aria-label="Estimated team birding mileage">
-            <span class="travel-summary__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" role="img">
-                <path d="M16 7h.01M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.3-2.3L2 20m18-13 2 .5-2 .5M10 18v3m4-3.3V21M7 18a6 6 0 0 0 3.8-10.6" />
+          <div class="expedition-log" aria-label="Team expedition log">
+            <div class="expedition-log__title">
+              <span class="travel-summary__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" role="img">
+                  <path d="M16 7h.01M3.4 18H12a8 8 0 0 0 8-8V7a4 4 0 0 0-7.3-2.3L2 20m18-13 2 .5-2 .5M10 18v3m4-3.3V21M7 18a6 6 0 0 0 3.8-10.6" />
+                </svg>
+              </span>
+              <div>
+                <p class="eyebrow">Expedition log</p>
+                <strong>Rain or Shine field miles</strong>
+              </div>
+            </div>
+            <div class="expedition-log__stats">
+              <span>
+                <strong id="teamTravelMiles" class="travel-summary__miles">0 miles</strong>
+                <small>Estimated trail</small>
+              </span>
+              <span>
+                <strong id="teamTravelVisits">0</strong>
+                <small>Dated visits</small>
+              </span>
+              <span>
+                <strong>Morton, IL</strong>
+                <small>Team home base</small>
+              </span>
+              <span>
+                <strong id="teamTravelTrips">0</strong>
+                <small>Expeditions</small>
+              </span>
+            </div>
+            <p id="teamTravelMeta" class="expedition-log__note">Estimated team trail from Morton, Illinois.</p>
+          </div>
+          <div class="map-frame">
+            <span class="map-frame__ufo" aria-hidden="true">
+              <svg viewBox="0 0 80 32">
+                <path d="M26 15c2-8 8-12 14-12s12 4 14 12" />
+                <ellipse cx="40" cy="17" rx="31" ry="9" />
+                <path d="M20 21 12 30m48-9 8 9M34 25l-2 6m14-6 2 6" />
               </svg>
             </span>
-            <div>
-              <span id="teamTravelMiles" class="travel-summary__miles">0 miles</span>
-              <p id="teamTravelMeta">Estimated team trail from Morton, Illinois.</p>
+            <span class="map-frame__bigfoot" aria-hidden="true">
+              <svg viewBox="0 0 72 96">
+                <path d="M36 8c12 0 20 10 20 23 0 8-3 15-8 19l8 36H16l8-36c-5-4-8-11-8-19C16 18 24 8 36 8Z" />
+                <path d="M25 29c3 3 6 4 11 4s8-1 11-4M29 42h14M17 57 5 78m50-21 12 21" />
+              </svg>
+            </span>
+            <div class="map-wrap">
+              <div id="birdMap" aria-label="Interactive expedition map of uploaded birding locations"></div>
+              <p id="mapEmpty" class="empty-state">Upload lists with latitude and longitude to paint the map.</p>
             </div>
           </div>
-          <div class="map-wrap">
-            <div id="birdMap" aria-label="Map of uploaded observation locations"></div>
-            <p id="mapEmpty" class="empty-state">Upload lists with latitude and longitude to paint the map.</p>
-          </div>
           <div class="map-legend" aria-label="Map marker legend">
-            <span><i class="legend-dot legend-dot--matt"></i>Matt</span>
-            <span><i class="legend-dot legend-dot--jeff"></i>Jeff</span>
-            <span><i class="legend-dot legend-dot--alex"></i>Alex</span>
-            <span><i class="legend-dot legend-dot--shared-two"></i>2 birders</span>
-            <span><i class="legend-dot legend-dot--shared-three"></i>Team outing</span>
+            <span><i class="legend-marker legend-marker--matt" aria-hidden="true">B</i>Matt</span>
+            <span><i class="legend-marker legend-marker--jeff" aria-hidden="true">C</i>Jeff</span>
+            <span><i class="legend-marker legend-marker--alex" aria-hidden="true">L</i>Alex</span>
+            <span><i class="legend-marker legend-marker--shared-two" aria-hidden="true">OO</i>2 birders</span>
+            <span><i class="legend-marker legend-marker--shared-three" aria-hidden="true">&#9651;</i>Team outing</span>
           </div>
           <figure class="map-artwork" aria-label="Claymation birding scene">
             <img src="./assets/team-birding-scene.jpg" alt="Claymation birders and birds gathered in a whimsical rainy forest scene" loading="lazy" decoding="async" />
@@ -354,6 +395,7 @@
       window.RSB_NEARBY_TARGETS_ENDPOINT = location.protocol === "file:" ? "" : "/.netlify/functions/nearby-targets";
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="./app.js?v=20260728-3"></script>
+    <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+    <script src="./app.js?v=20260728-4"></script>
   </body>
 </html>

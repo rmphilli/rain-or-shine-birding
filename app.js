@@ -237,6 +237,8 @@ const ambienceToggle = document.querySelector("#ambienceToggle");
 const ambienceToggleLabel = document.querySelector("#ambienceToggleLabel");
 const welcomeMessage = document.querySelector("#welcomeMessage");
 const teamTravelMiles = document.querySelector("#teamTravelMiles");
+const teamTravelVisits = document.querySelector("#teamTravelVisits");
+const teamTravelTrips = document.querySelector("#teamTravelTrips");
 const teamTravelMeta = document.querySelector("#teamTravelMeta");
 const nearbyTargetsList = document.querySelector("#nearbyTargetsList");
 const nearbyTargetsStatus = document.querySelector("#nearbyTargetsStatus");
@@ -254,6 +256,8 @@ const adventureRefreshButton = document.querySelector("#adventureRefreshButton")
 let attachedBirdImage = null;
 let birdMap = null;
 let birdMapLayer = null;
+let birdMapBounds = [];
+let birdMapSelectedMarker = null;
 let ambientAudioContext = null;
 let ambientRainSource = null;
 let ambientBirdTimer = null;
@@ -545,6 +549,8 @@ function renderMemberBreakdown() {
 function renderTravelSummary() {
   const travel = estimateTeamTravelMiles();
   teamTravelMiles.textContent = `${travel.miles.toLocaleString()} miles`;
+  teamTravelVisits.textContent = travel.visits.toLocaleString();
+  teamTravelTrips.textContent = travel.trips.toLocaleString();
   teamTravelMeta.textContent = travel.visits
     ? `Estimated from ${travel.visits.toLocaleString()} dated location visits, with multi-day trips routed together from Morton.`
     : "Estimated team trail from Morton, Illinois.";
@@ -2272,6 +2278,7 @@ function fromRemoteBadge(row) {
 function renderMap() {
   const selected = memberFilter.value;
   const isSmallScreen = window.matchMedia("(max-width: 620px)").matches;
+  const supportsHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   const points = observations
     .filter((obs) => selected === "all" || normalizeMemberName(obs.member) === selected)
     .filter((obs) => obs.latitude !== null && obs.longitude !== null);
@@ -2286,46 +2293,285 @@ function renderMap() {
   if (!birdMap) {
     birdMap = L.map(mapContainer, {
       scrollWheelZoom: false,
+      zoomControl: false,
     }).setView([39.5, -98.35], 4);
 
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      attribution: "&copy; OpenStreetMap contributors",
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
+      subdomains: "abcd",
+      maxZoom: 20,
+      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
     }).addTo(birdMap);
+    addExpeditionMapControls(birdMap);
   }
 
   if (birdMapLayer) birdMapLayer.remove();
-  birdMapLayer = L.layerGroup().addTo(birdMap);
-  if (!points.length) return;
+  birdMapSelectedMarker = null;
+  birdMapLayer = createBirdMapLayer(isSmallScreen).addTo(birdMap);
+  if (!points.length) {
+    birdMapBounds = [];
+    return;
+  }
 
   const locationGroups = aggregateMapLocations(points);
   const bounds = [];
   locationGroups.forEach((location) => {
-    const markerStyle = getMapMarkerStyle(location.members, isSmallScreen);
-    const marker = L.circleMarker([location.latitude, location.longitude], {
-      radius: markerStyle.radius,
-      color: markerStyle.ring,
-      weight: markerStyle.weight,
-      fillColor: markerStyle.fill,
-      fillOpacity: markerStyle.opacity,
-      className: markerStyle.className,
-    }).addTo(birdMapLayer);
-    marker.bindPopup(`
-      <strong>${escapeHtml(location.label)}</strong><br>
-      ${escapeHtml(location.members.join(", "))}<br>
-      ${escapeHtml(location.location || "Unknown place")}<br>
-      ${escapeHtml(`${location.count} observation${location.count === 1 ? "" : "s"}`)}
-    `);
+    const marker = L.marker([location.latitude, location.longitude], {
+      icon: createMapMarkerIcon(location.members, isSmallScreen),
+      keyboard: true,
+      riseOnHover: true,
+      title: createMapMarkerAriaLabel(location),
+      alt: createMapMarkerAriaLabel(location),
+    });
+    marker.bindPopup(buildMapFieldNote(location), {
+      className: "field-note-popup",
+      maxWidth: isSmallScreen ? 270 : 310,
+      minWidth: isSmallScreen ? 230 : 250,
+      autoPan: true,
+      autoPanPaddingTopLeft: [24, 72],
+      autoPanPaddingBottomRight: [24, 40],
+      keepInView: true,
+      closeButton: true,
+    });
+
+    marker.on("add", () => {
+      const element = marker.getElement();
+      if (!element) return;
+      element.setAttribute("aria-label", createMapMarkerAriaLabel(location));
+      element.setAttribute("role", "button");
+    });
+    marker.on("click", () => selectMapMarker(marker));
+    marker.on("popupclose", () => {
+      if (birdMapSelectedMarker === marker) {
+        marker.getElement()?.classList.remove("is-selected");
+        birdMapSelectedMarker = null;
+      }
+    });
+
+    if (supportsHover) {
+      marker.bindTooltip(buildMapFieldNote(location), {
+        className: "field-note-tooltip",
+        direction: "auto",
+        offset: [0, -22],
+        opacity: 1,
+        interactive: true,
+        sticky: true,
+      });
+      marker.on("tooltipopen", () => marker.getElement()?.classList.add("is-hovered"));
+      marker.on("tooltipclose", () => {
+        marker.getElement()?.classList.remove("is-hovered");
+      });
+    }
+
+    birdMapLayer.addLayer(marker);
     bounds.push([location.latitude, location.longitude]);
   });
 
   fitMapToBounds(bounds);
 }
 
+function createBirdMapLayer(isSmallScreen) {
+  if (typeof L.markerClusterGroup !== "function") return L.layerGroup();
+
+  const clusterLayer = L.markerClusterGroup({
+    showCoverageOnHover: false,
+    spiderfyOnMaxZoom: true,
+    zoomToBoundsOnClick: false,
+    removeOutsideVisibleBounds: true,
+    maxClusterRadius: isSmallScreen ? 42 : 50,
+    disableClusteringAtZoom: 13,
+    iconCreateFunction: createMapClusterIcon,
+  });
+  clusterLayer.on("clusterclick", (event) => {
+    event.layer.zoomToBounds({
+      paddingTopLeft: isSmallScreen ? [32, 66] : [42, 52],
+      paddingBottomRight: isSmallScreen ? [32, 34] : [76, 42],
+      maxZoom: 13,
+    });
+  });
+  return clusterLayer;
+}
+
+function createMapClusterIcon(cluster) {
+  const count = cluster.getChildCount();
+  const sizeClass = count >= 50 ? "large" : count >= 15 ? "medium" : "small";
+  const size = sizeClass === "large" ? 58 : sizeClass === "medium" ? 52 : 46;
+  return L.divIcon({
+    className: `expedition-cluster expedition-cluster--${sizeClass}`,
+    html: `
+      <span class="expedition-cluster__nest" role="img" aria-label="${count} locations in this cluster">
+        <i aria-hidden="true"></i>
+        <strong>${count}</strong>
+      </span>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
+
+function addExpeditionMapControls(map) {
+  const ExpeditionControls = L.Control.extend({
+    options: { position: "topright" },
+    onAdd() {
+      const container = L.DomUtil.create("div", "leaflet-bar expedition-map-controls");
+      const makeButton = (label, symbol, title, handler) => {
+        const button = L.DomUtil.create("button", "expedition-map-control", container);
+        button.type = "button";
+        button.setAttribute("aria-label", label);
+        button.title = title;
+        button.textContent = symbol;
+        L.DomEvent.on(button, "click", L.DomEvent.stop);
+        L.DomEvent.on(button, "click", handler);
+        return button;
+      };
+
+      makeButton("Zoom in", "+", "Zoom in", () => map.zoomIn());
+      makeButton("Zoom out", "\u2212", "Zoom out", () => map.zoomOut());
+      makeButton("Fit the full expedition trail", "\u2316", "Fit the full expedition trail", fitBirdMapToTrail);
+      L.DomEvent.disableClickPropagation(container);
+      L.DomEvent.disableScrollPropagation(container);
+      return container;
+    },
+  });
+
+  new ExpeditionControls().addTo(map);
+}
+
+function fitBirdMapToTrail() {
+  if (!birdMap || !birdMapBounds.length) return;
+  const isSmallScreen = window.matchMedia("(max-width: 620px)").matches;
+  birdMap.fitBounds(birdMapBounds, {
+    paddingTopLeft: isSmallScreen ? [32, 66] : [42, 52],
+    paddingBottomRight: isSmallScreen ? [32, 34] : [76, 42],
+    maxZoom: 12,
+    animate: true,
+  });
+}
+
+function createMapMarkerIcon(members, isSmallScreen) {
+  const descriptor = getMapMarkerDescriptor(members);
+  const width = isSmallScreen ? 46 : 40;
+  const height = isSmallScreen ? 52 : 46;
+  return L.divIcon({
+    className: `expedition-marker expedition-marker--${descriptor.className}`,
+    html: `
+      <span class="expedition-marker__pin" aria-hidden="true">
+        ${descriptor.svg}
+      </span>
+    `,
+    iconSize: [width, height],
+    iconAnchor: [width / 2, height - 4],
+    popupAnchor: [0, -(height - 10)],
+  });
+}
+
+function getMapMarkerDescriptor(members) {
+  if (members.length >= 3) {
+    return {
+      className: "shared-three",
+      svg: `
+        <svg viewBox="0 0 28 28">
+          <path d="M7 22h14M10 20c-1.7-4.4.1-7.5 4-10.4 3.9 2.9 5.7 6 4 10.4M10.5 16.5h7M14 9.5V5m-2.5 2.5L14 5l2.5 2.5" />
+        </svg>
+      `,
+    };
+  }
+  if (members.length === 2) {
+    return {
+      className: "shared-two",
+      svg: `
+        <svg viewBox="0 0 28 28">
+          <circle cx="8.5" cy="16.5" r="4.5" />
+          <circle cx="19.5" cy="16.5" r="4.5" />
+          <path d="M12.8 16.5h2.4M7 12l2-5h3l2 6m7-1-2-5h-3l-2 6" />
+        </svg>
+      `,
+    };
+  }
+
+  const member = normalizeMemberName(members[0]);
+  if (member === "Matt") {
+    return {
+      className: "matt",
+      svg: `
+        <svg viewBox="0 0 28 28">
+          <path d="M6 18c7.5 0 9.5-8.5 16-8-1.5 6-5.5 10-12 10l-3 3m10-10 4-1.5M11 20v3" />
+          <circle cx="18.5" cy="11.7" r=".7" />
+        </svg>
+      `,
+    };
+  }
+  if (member === "Jeff") {
+    return {
+      className: "jeff",
+      svg: `
+        <svg viewBox="0 0 28 28">
+          <circle cx="14" cy="14" r="8.5" />
+          <path d="m17.5 10.5-2.1 4.9-4.9 2.1 2.1-4.9 4.9-2.1Z" />
+        </svg>
+      `,
+    };
+  }
+  return {
+    className: "alex",
+    svg: `
+      <svg viewBox="0 0 28 28">
+        <path d="M21 7c-8 .2-13 4.4-13 10.5 0 2.3 1.4 3.8 3.7 3.8C17.8 21.3 21 15 21 7Z" />
+        <path d="M7 23c2.5-5 5.7-8.2 10.2-10.6" />
+      </svg>
+    `,
+  };
+}
+
+function createMapMarkerAriaLabel(location) {
+  const visitors = location.members.length ? location.members.join(", ") : "the team";
+  return `${location.location || "Birding location"}, visited by ${visitors}; ${location.visitCount} visit${
+    location.visitCount === 1 ? "" : "s"
+  }, ${location.speciesCount} species`;
+}
+
+function buildMapFieldNote(location) {
+  const locationName = location.location || "Unknown place";
+  const visitors = location.members.length ? location.members.join(", ") : "Rain or Shine team";
+  const firstVisit = location.firstVisit ? formatDate(location.firstVisit) : "Not recorded";
+  const latestVisit = location.latestVisit ? formatDate(location.latestVisit) : "Not recorded";
+  const mapUrl = `https://www.openstreetmap.org/?mlat=${location.latitude.toFixed(5)}&mlon=${location.longitude.toFixed(
+    5
+  )}#map=14/${location.latitude.toFixed(5)}/${location.longitude.toFixed(5)}`;
+
+  return `
+    <article class="map-field-note">
+      <p class="map-field-note__eyebrow">${escapeHtml(location.label)}</p>
+      <h3>${escapeHtml(locationName)}</h3>
+      <p class="map-field-note__visitors">Field team: <strong>${escapeHtml(visitors)}</strong></p>
+      <dl>
+        <div><dt>Visits</dt><dd>${location.visitCount}</dd></div>
+        <div><dt>Species</dt><dd>${location.speciesCount}</dd></div>
+        <div><dt>First</dt><dd>${escapeHtml(firstVisit)}</dd></div>
+        <div><dt>Latest</dt><dd>${escapeHtml(latestVisit)}</dd></div>
+      </dl>
+      <a href="${mapUrl}" target="_blank" rel="noopener noreferrer">View this location</a>
+    </article>
+  `;
+}
+
+function selectMapMarker(marker) {
+  if (birdMapSelectedMarker && birdMapSelectedMarker !== marker) {
+    birdMapSelectedMarker.getElement()?.classList.remove("is-selected");
+  }
+  birdMapSelectedMarker = marker;
+  marker.getElement()?.classList.add("is-selected");
+}
+
 function fitMapToBounds(bounds) {
+  birdMapBounds = bounds;
+  const isSmallScreen = window.matchMedia("(max-width: 620px)").matches;
   const fit = () => {
     birdMap.invalidateSize();
-    birdMap.fitBounds(bounds, { padding: [28, 28], maxZoom: 12 });
+    birdMap.fitBounds(bounds, {
+      paddingTopLeft: isSmallScreen ? [32, 66] : [42, 52],
+      paddingBottomRight: isSmallScreen ? [32, 34] : [76, 42],
+      maxZoom: 12,
+    });
   };
   fit();
   window.setTimeout(fit, 180);
@@ -2350,53 +2596,32 @@ function aggregateMapLocations(points) {
         location: point.location || "Unknown place",
         members: new Set(),
         count: 0,
+        species: new Set(),
+        visits: new Set(),
+        dates: new Set(),
       });
     }
     const group = groups.get(key);
     group.members.add(normalizeMemberName(point.member));
     group.count += 1;
+    group.species.add(getSpeciesId(point));
+    group.visits.add(point.checklist || point.date || point.id);
+    if (point.date) group.dates.add(point.date);
   });
 
   return [...groups.values()].map((group) => {
     const members = teamSpeciesMembers.filter((member) => group.members.has(member));
+    const dates = [...group.dates].sort();
     return {
       ...group,
       members,
+      visitCount: group.visits.size,
+      speciesCount: group.species.size,
+      firstVisit: dates[0] || "",
+      latestVisit: dates[dates.length - 1] || "",
       label: members.length === 3 ? "Team outing location" : members.length === 2 ? "Shared birding location" : members[0] || "Birding location",
     };
   });
-}
-
-function getMapMarkerStyle(members, isSmallScreen = false) {
-  const touchBoost = isSmallScreen ? 3 : 0;
-  if (members.length >= 3) {
-    return {
-      fill: "#d8a928",
-      ring: "#fff5bf",
-      radius: 10 + touchBoost,
-      weight: 4,
-      opacity: 0.95,
-      className: "map-marker--shared-three",
-    };
-  }
-  if (members.length === 2) {
-    return {
-      fill: "#b9c0bf",
-      ring: "#f4f2e8",
-      radius: 9 + touchBoost,
-      weight: 4,
-      opacity: 0.94,
-      className: "map-marker--shared-two",
-    };
-  }
-  return {
-    fill: getMemberColor(members[0]),
-    ring: "#fffdf5",
-    radius: 7 + touchBoost,
-    weight: 2,
-    opacity: 0.88,
-    className: "",
-  };
 }
 
 function saveObservations() {
