@@ -125,6 +125,13 @@ select {
   cursor: pointer;
 }
 
+.topbar-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  text-decoration: none;
+}
+
 .hero__copy {
   position: relative;
   z-index: 3;
@@ -179,6 +186,7 @@ main {
 .birder-types,
 .assistant-panel,
 .adventure-board,
+.bazaar-preview,
 .list-section,
 .team-species-section,
 .team-targets-section,
@@ -1332,8 +1340,19 @@ input[type="search"] {
 
 .nearby-target .needed-by {
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
   gap: 4px;
+}
+
+.needed-by__label {
+  flex-basis: 100%;
+  color: var(--muted);
+  font-size: 0.58rem;
+  font-weight: 900;
+  text-align: right;
+  text-transform: uppercase;
 }
 
 .needed-by__initial {
@@ -1491,6 +1510,45 @@ input[type="search"] {
   margin: 13px 0 0;
   color: var(--muted);
   font-size: 0.78rem;
+}
+
+.bazaar-preview {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: clamp(20px, 3vw, 30px);
+  border-left: 5px solid var(--sun);
+  border-radius: 8px;
+  background:
+    linear-gradient(105deg, rgba(243, 201, 93, 0.2), rgba(143, 184, 201, 0.16)),
+    rgba(255, 255, 251, 0.9);
+}
+
+.bazaar-preview h2 {
+  margin-bottom: 8px;
+  font-family: Georgia, "Times New Roman", serif;
+}
+
+.bazaar-preview p:last-child {
+  max-width: 720px;
+  margin-bottom: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.bazaar-preview__link {
+  display: inline-flex;
+  min-height: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 11px 18px;
+  background: var(--moss);
+  color: white;
+  font-weight: 800;
+  text-decoration: none;
 }
 
 .whimsy-card {
@@ -2032,6 +2090,10 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .bazaar-preview {
+    align-items: flex-start;
+  }
+
   .stats,
   .upload-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2214,6 +2276,14 @@ th {
 
   .topbar__actions #resetData {
     display: none;
+  }
+
+  .bazaar-preview {
+    display: grid;
+  }
+
+  .bazaar-preview__link {
+    width: fit-content;
   }
 
   .stats,

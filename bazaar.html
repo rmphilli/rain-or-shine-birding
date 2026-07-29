@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#fbfaf4" />
+    <title>Rain or Shine Bazaar</title>
+    <link rel="stylesheet" href="./styles.css?v=20260728-5" />
+    <link rel="stylesheet" href="./bazaar.css?v=20260728-1" />
+    <script src="./bazaar-config.js"></script>
+    <script src="./bazaar.js?v=20260728-1" defer></script>
+  </head>
+  <body class="bazaar-page">
+    <header class="bazaar-shell-header">
+      <nav class="bazaar-shell-nav" aria-label="Site">
+        <a class="brand bazaar-brand" href="./index.html">
+          <span class="brand__mark" aria-hidden="true">RS</span>
+          <span>Rain or Shine Birding Team</span>
+        </a>
+        <p id="bazaarWelcome" class="welcome-message">
+          Members-only field market
+        </p>
+        <a class="ghost-button bazaar-dashboard-link" href="./index.html"
+          >Back to birding</a
+        >
+      </nav>
+    </header>
+
+    <main class="bazaar-main">
+      <section id="bazaarDisabled" class="bazaar-gate" hidden>
+        <p class="eyebrow">The market is resting</p>
+        <h1>Rain or Shine Bazaar</h1>
+        <p>
+          The Bazaar is switched off for now. The birding dashboard is still
+          right where you left it.
+        </p>
+        <a class="bazaar-primary-link" href="./index.html"
+          >Return to the dashboard</a
+        >
+      </section>
+
+      <section
+        id="bazaarAccessGate"
+        class="bazaar-gate"
+        aria-labelledby="bazaarGateTitle"
+      >
+        <p class="eyebrow">Private flock access</p>
+        <h1 id="bazaarGateTitle">
+          The Bazaar opens for the Rain or Shine trio.
+        </h1>
+        <p>
+          Sign in from the birding dashboard with your magic link, then come
+          back through its Bazaar entrance.
+        </p>
+        <a class="bazaar-primary-link" href="./index.html#accessTitle"
+          >Go to team sign-in</a
+        >
+        <p id="bazaarGateStatus" class="bazaar-gate__status" role="status">
+          Checking your field pass...
+        </p>
+      </section>
+
+      <div id="bazaarExperience" hidden>
+        <h1 class="sr-only">Rain or Shine Bazaar</h1>
+        <section
+          class="bazaar-hero"
+          aria-label="Rain or Shine Bazaar field market"
+        >
+          <picture>
+            <source
+              type="image/webp"
+              srcset="
+                ./assets/rain-or-shine-bazaar-960.webp   960w,
+                ./assets/rain-or-shine-bazaar-1600.webp 1600w
+              "
+              sizes="(max-width: 760px) calc(100vw - 32px), calc(100vw - 64px)"
+            />
+            <img
+              src="./assets/rain-or-shine-bazaar.jpg"
+              alt="Claymation Rain or Shine birders exploring a lively market with birds, friendly aliens, and a Bigfoot optics vendor"
+              width="1672"
+              height="941"
+              fetchpriority="high"
+              decoding="async"
+            />
+          </picture>
+        </section>
+
+        <section class="bazaar-intro" aria-labelledby="bazaarIntroTitle">
+          <div>
+            <p class="eyebrow">A small field market</p>
+            <h2 id="bazaarIntroTitle">Useful things for curious outings</h2>
+            <p>
+              Browse a calm preview of trail gear, field tools, and team whimsy.
+              Your birding records are never read or changed here.
+            </p>
+          </div>
+          <span class="bazaar-preview-label">Mock market preview</span>
+        </section>
+
+        <section class="bazaar-controls" aria-label="Bazaar filters">
+          <label class="bazaar-search">
+            <span>Search the stalls</span>
+            <input
+              id="bazaarSearch"
+              type="search"
+              placeholder="Notebook, optics, rain gear..."
+            />
+          </label>
+          <label>
+            <span>Category</span>
+            <select id="bazaarCategory">
+              <option value="all">All stalls</option>
+              <option value="field-tools">Field tools</option>
+              <option value="optics">Optics</option>
+              <option value="rain-gear">Rain gear</option>
+              <option value="books-maps">Books &amp; maps</option>
+              <option value="camp-travel">Camp &amp; travel</option>
+              <option value="team-whimsy">Team whimsy</option>
+            </select>
+          </label>
+          <label>
+            <span>Sort</span>
+            <select id="bazaarSort">
+              <option value="featured">Field notes first</option>
+              <option value="price-low">Price: low to high</option>
+              <option value="price-high">Price: high to low</option>
+              <option value="discount">Largest sample saving</option>
+            </select>
+          </label>
+          <button id="bazaarReset" class="ghost-button" type="button">
+            Reset filters
+          </button>
+        </section>
+
+        <div class="bazaar-results-heading">
+          <p id="bazaarResultCount" role="status">12 preview finds</p>
+          <p>Watch, Want, Maybe, and Pass choices stay on this device.</p>
+        </div>
+        <section
+          id="bazaarGrid"
+          class="bazaar-grid"
+          aria-label="Bazaar preview listings"
+        ></section>
+        <p id="bazaarEmpty" class="bazaar-empty" hidden>
+          No finds match those field notes yet.
+        </p>
+
+        <footer class="bazaar-footer">
+          <p>
+            <strong>Preview only.</strong> Prices, vendors, and savings are
+            illustrative until live retailer sources are connected.
+          </p>
+          <a href="./index.html">Return to the team trail</a>
+        </footer>
+      </div>
+    </main>
+  </body>
+</html>

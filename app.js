@@ -259,7 +259,10 @@ let birdMapLayer = null;
 let birdMapBounds = [];
 let birdMapSelectedMarker = null;
 let ambientAudioContext = null;
-let ambientRainSource = null;
+let ambientMasterGain = null;
+let ambientRainSources = [];
+let ambientRainDropTimer = null;
+let ambientRainSwellTimer = null;
 let ambientBirdTimer = null;
 
 const aliases = {
@@ -345,6 +348,7 @@ window.addEventListener("resize", scheduleMapRefresh);
 window.addEventListener("orientationchange", scheduleMapRefresh);
 setupChatAssistant();
 setupAmbientSound();
+setupBazaarEntryPoints();
 setupAuth();
 setupAutoSync();
 initRemoteData();
@@ -353,6 +357,12 @@ loadAdventureFinds();
 loadNearbyTargetSightings();
 
 render();
+
+function setupBazaarEntryPoints() {
+  document.querySelectorAll("[data-bazaar-entry]").forEach((entry) => {
+    entry.hidden = !window.RSB_BAZAAR_ENABLED;
+  });
+}
 
 function parseCsv(text) {
   const rows = [];
@@ -676,27 +686,36 @@ function renderNearbyTargetSightings() {
   if (!nearbyTargetSightings.length) {
     nearbyTargetsList.innerHTML =
       '<p class="nearby-targets__empty">Fresh nearby target birds will perch here when the eBird scout checks in.</p>';
-    return;
+    return 0;
   }
 
   const seenBySpecies = new Map(speciesGroups().map((group) => [getSpeciesId(group), group.members]));
-  const targets = nearbyTargetSightings
+  const candidates = nearbyTargetSightings
     .map((sighting) => {
       const seenBy = seenBySpecies.get(getSpeciesId(sighting)) || new Set();
       const neededBy = teamSpeciesMembers.filter((member) => !seenBy.has(member));
-      return { ...sighting, neededBy };
+      return { ...sighting, seenBy: [...seenBy], neededBy };
     })
-    .filter((sighting) => sighting.neededBy.length)
+    .filter((sighting) => sighting.seenBy.length && sighting.neededBy.length)
     .sort((a, b) => {
       if (a.neededBy.length !== b.neededBy.length) return a.neededBy.length - b.neededBy.length;
       return (b.date || "").localeCompare(a.date || "");
+    });
+
+  const targetSpecies = new Set();
+  const targets = candidates
+    .filter((sighting) => {
+      const speciesId = getSpeciesId(sighting);
+      if (targetSpecies.has(speciesId)) return false;
+      targetSpecies.add(speciesId);
+      return true;
     })
-    .slice(0, 7);
+    .slice(0, 6);
 
   if (!targets.length) {
     nearbyTargetsList.innerHTML =
       '<p class="nearby-targets__empty">Every recent nearby bird is already Team Complete. That is a lovely problem.</p>';
-    return;
+    return 0;
   }
 
   targets.forEach((target) => {
@@ -724,12 +743,16 @@ function renderNearbyTargetSightings() {
     location.textContent = target.location || "eBird location";
     const recency = document.createElement("span");
     recency.className = "nearby-target__recency";
-    recency.textContent = target.date ? formatRelativeObservationDate(target.date) : "Recently reported";
+    recency.textContent = target.date ? formatDate(target.date) : "Recently reported";
+    if (target.date) recency.title = formatRelativeObservationDate(target.date);
     body.append(speciesLink, location, recency);
 
     const neededBy = document.createElement("span");
     neededBy.className = "needed-by";
     neededBy.setAttribute("aria-label", `Needed by ${target.neededBy.join(", ")}`);
+    const neededLabel = document.createElement("small");
+    neededLabel.className = "needed-by__label";
+    neededLabel.textContent = "Needs";
     card.innerHTML = `
       ${target.neededBy
         .map(
@@ -738,11 +761,12 @@ function renderNearbyTargetSightings() {
         )
         .join("")}
     `;
-    neededBy.append(...card.childNodes);
+    neededBy.append(neededLabel, ...card.childNodes);
     card.replaceChildren(photoLink, body, neededBy);
     nearbyTargetsList.appendChild(card);
     loadTargetBirdPhoto(target, photoLink);
   });
+  return targets.length;
 }
 
 function formatRelativeObservationDate(dateValue) {
@@ -807,8 +831,8 @@ async function loadNearbyTargetSightings({ announce = false } = {}) {
     }
 
     nearbyTargetSightings = data.sightings;
-    renderNearbyTargetSightings();
-    nearbyTargetsStatus.textContent = `${data.sightings.length} recent reports`;
+    const targetCount = renderNearbyTargetSightings();
+    nearbyTargetsStatus.textContent = `${targetCount} team ${targetCount === 1 ? "target" : "targets"}`;
     nearbyTargetsMeta.textContent = data.checkedAt
       ? `eBird reports within 30 miles over the last 30 days. Checked ${formatDateTime(data.checkedAt)}.`
       : "eBird reports within 30 miles over the last 30 days.";
@@ -874,29 +898,114 @@ function setupAmbientSound() {
 }
 
 function startLightRain(context) {
-  const seconds = 3;
+  ambientMasterGain = context.createGain();
+  ambientMasterGain.gain.value = 0.72;
+  ambientMasterGain.connect(context.destination);
+
+  const rainBed = createPinkRainBuffer(context, 5);
+  [
+    { high: 260, low: 2200, gain: 0.026, rate: 0.91 },
+    { high: 700, low: 3900, gain: 0.012, rate: 1.07 },
+  ].forEach((layer) => {
+    const source = context.createBufferSource();
+    const highPass = context.createBiquadFilter();
+    const lowPass = context.createBiquadFilter();
+    const gain = context.createGain();
+    source.buffer = rainBed;
+    source.loop = true;
+    source.playbackRate.value = layer.rate;
+    highPass.type = "highpass";
+    highPass.frequency.value = layer.high;
+    lowPass.type = "lowpass";
+    lowPass.frequency.value = layer.low;
+    gain.gain.value = layer.gain;
+    source.connect(highPass).connect(lowPass).connect(gain).connect(ambientMasterGain);
+    source.start(context.currentTime, Math.random() * 3);
+    ambientRainSources.push({ source, gain });
+  });
+
+  scheduleRainDrops();
+  scheduleRainSwell();
+}
+
+function createPinkRainBuffer(context, seconds) {
   const buffer = context.createBuffer(1, context.sampleRate * seconds, context.sampleRate);
   const data = buffer.getChannelData(0);
-  let last = 0;
+  let b0 = 0;
+  let b1 = 0;
+  let b2 = 0;
+  let b3 = 0;
+  let b4 = 0;
+  let b5 = 0;
+  let b6 = 0;
   for (let index = 0; index < data.length; index += 1) {
     const white = Math.random() * 2 - 1;
-    last = last * 0.985 + white * 0.015;
-    data[index] = last * 3.2;
+    b0 = 0.99886 * b0 + white * 0.0555179;
+    b1 = 0.99332 * b1 + white * 0.0750759;
+    b2 = 0.969 * b2 + white * 0.153852;
+    b3 = 0.8665 * b3 + white * 0.3104856;
+    b4 = 0.55 * b4 + white * 0.5329522;
+    b5 = -0.7616 * b5 - white * 0.016898;
+    const pink = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+    b6 = white * 0.115926;
+    data[index] = pink * 0.085;
   }
+  return buffer;
+}
 
-  ambientRainSource = context.createBufferSource();
-  const highPass = context.createBiquadFilter();
-  const lowPass = context.createBiquadFilter();
-  const rainGain = context.createGain();
-  highPass.type = "highpass";
-  highPass.frequency.value = 420;
-  lowPass.type = "lowpass";
-  lowPass.frequency.value = 5200;
-  rainGain.gain.value = 0.028;
-  ambientRainSource.buffer = buffer;
-  ambientRainSource.loop = true;
-  ambientRainSource.connect(highPass).connect(lowPass).connect(rainGain).connect(context.destination);
-  ambientRainSource.start();
+function scheduleRainDrops() {
+  if (!ambientAudioContext) return;
+  ambientRainDropTimer = window.setTimeout(() => {
+    const drops = 1 + Math.floor(Math.random() * 3);
+    for (let index = 0; index < drops; index += 1) {
+      playRainDrop(index * (0.035 + Math.random() * 0.06));
+    }
+    scheduleRainDrops();
+  }, 180 + Math.random() * 520);
+}
+
+function playRainDrop(delay = 0) {
+  const context = ambientAudioContext;
+  if (!context || context.state === "closed" || !ambientMasterGain) return;
+  const now = context.currentTime + delay;
+  const duration = 0.045 + Math.random() * 0.08;
+  const oscillator = context.createOscillator();
+  const gain = context.createGain();
+  const filter = context.createBiquadFilter();
+  const panner = typeof context.createStereoPanner === "function" ? context.createStereoPanner() : null;
+  const frequency = 1100 + Math.random() * 2200;
+
+  oscillator.type = Math.random() > 0.5 ? "sine" : "triangle";
+  oscillator.frequency.setValueAtTime(frequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(frequency * 0.58, now + duration);
+  filter.type = "bandpass";
+  filter.frequency.value = frequency;
+  filter.Q.value = 0.8;
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.exponentialRampToValueAtTime(0.0025 + Math.random() * 0.0045, now + 0.008);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  if (panner) {
+    panner.pan.value = Math.random() * 1.5 - 0.75;
+    oscillator.connect(filter).connect(gain).connect(panner).connect(ambientMasterGain);
+  } else {
+    oscillator.connect(filter).connect(gain).connect(ambientMasterGain);
+  }
+  oscillator.start(now);
+  oscillator.stop(now + duration + 0.02);
+}
+
+function scheduleRainSwell() {
+  if (!ambientAudioContext || !ambientRainSources.length) return;
+  ambientRainSwellTimer = window.setTimeout(() => {
+    const now = ambientAudioContext.currentTime;
+    ambientRainSources.forEach(({ gain }, index) => {
+      const target = index === 0 ? 0.021 + Math.random() * 0.01 : 0.009 + Math.random() * 0.007;
+      gain.gain.cancelScheduledValues(now);
+      gain.gain.setValueAtTime(gain.gain.value, now);
+      gain.gain.linearRampToValueAtTime(target, now + 3.5);
+    });
+    scheduleRainSwell();
+  }, 4500 + Math.random() * 3500);
 }
 
 function scheduleBirdChirp() {
@@ -904,39 +1013,84 @@ function scheduleBirdChirp() {
   ambientBirdTimer = window.setTimeout(() => {
     playBirdChirp();
     scheduleBirdChirp();
-  }, 3200 + Math.random() * 5200);
+  }, 2800 + Math.random() * 4800);
 }
 
 function playBirdChirp() {
   const context = ambientAudioContext;
-  if (!context || context.state === "closed") return;
+  if (!context || context.state === "closed" || !ambientMasterGain) return;
   const now = context.currentTime;
+  const calls = [playRobinPhrase, playWarblerTrill, playChickadeeCall, playDoveCoo];
+  calls[Math.floor(Math.random() * calls.length)](context, now);
+}
+
+function playRobinPhrase(context, now) {
+  [1680, 2050, 1810, 2320].forEach((frequency, index) => {
+    playBirdTone(context, now + index * 0.17, frequency, frequency * 1.12, 0.13, 0.017, "triangle");
+  });
+}
+
+function playWarblerTrill(context, now) {
+  const base = 2500 + Math.random() * 350;
+  for (let index = 0; index < 7; index += 1) {
+    const frequency = base + (index % 2 ? 520 : 0);
+    playBirdTone(context, now + index * 0.072, frequency, frequency * 0.84, 0.055, 0.011, "sine");
+  }
+}
+
+function playChickadeeCall(context, now) {
+  playBirdTone(context, now, 2250, 1840, 0.24, 0.014, "sine");
+  [0.34, 0.45, 0.56].forEach((offset, index) => {
+    playBirdTone(context, now + offset, 2850 + index * 120, 2450, 0.085, 0.012, "triangle");
+  });
+}
+
+function playDoveCoo(context, now) {
+  playBirdTone(context, now, 430, 390, 0.38, 0.013, "sine");
+  playBirdTone(context, now + 0.42, 365, 335, 0.3, 0.011, "sine");
+  playBirdTone(context, now + 0.77, 405, 355, 0.36, 0.009, "sine");
+}
+
+function playBirdTone(context, now, startFrequency, endFrequency, duration, volume, type) {
   const oscillator = context.createOscillator();
   const gain = context.createGain();
-  const baseFrequency = 1500 + Math.random() * 700;
-  oscillator.type = "sine";
-  oscillator.frequency.setValueAtTime(baseFrequency, now);
-  oscillator.frequency.exponentialRampToValueAtTime(baseFrequency * 1.45, now + 0.08);
-  oscillator.frequency.exponentialRampToValueAtTime(baseFrequency * 0.9, now + 0.2);
+  const filter = context.createBiquadFilter();
+  const panner = typeof context.createStereoPanner === "function" ? context.createStereoPanner() : null;
+  oscillator.type = type;
+  oscillator.frequency.setValueAtTime(startFrequency, now);
+  oscillator.frequency.exponentialRampToValueAtTime(endFrequency, now + duration);
+  filter.type = "lowpass";
+  filter.frequency.value = Math.max(1100, startFrequency * 1.55);
+  filter.Q.value = 0.65;
   gain.gain.setValueAtTime(0.0001, now);
-  gain.gain.exponentialRampToValueAtTime(0.026, now + 0.025);
-  gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
-  oscillator.connect(gain).connect(context.destination);
+  gain.gain.exponentialRampToValueAtTime(volume, now + Math.min(0.035, duration * 0.25));
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+  if (panner) {
+    panner.pan.value = Math.random() * 1.4 - 0.7;
+    oscillator.connect(filter).connect(gain).connect(panner).connect(ambientMasterGain);
+  } else {
+    oscillator.connect(filter).connect(gain).connect(ambientMasterGain);
+  }
   oscillator.start(now);
-  oscillator.stop(now + 0.24);
+  oscillator.stop(now + duration + 0.03);
 }
 
 function stopAmbientSound() {
   if (ambientBirdTimer) window.clearTimeout(ambientBirdTimer);
+  if (ambientRainDropTimer) window.clearTimeout(ambientRainDropTimer);
+  if (ambientRainSwellTimer) window.clearTimeout(ambientRainSwellTimer);
   ambientBirdTimer = null;
-  if (ambientRainSource) {
+  ambientRainDropTimer = null;
+  ambientRainSwellTimer = null;
+  ambientRainSources.forEach(({ source }) => {
     try {
-      ambientRainSource.stop();
+      source.stop();
     } catch {
       // It may already be stopped as the audio context closes.
     }
-  }
-  ambientRainSource = null;
+  });
+  ambientRainSources = [];
+  ambientMasterGain = null;
   if (ambientAudioContext && ambientAudioContext.state !== "closed") ambientAudioContext.close();
   ambientAudioContext = null;
   if (ambienceToggle && ambienceToggleLabel) {
