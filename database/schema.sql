@@ -1,3 +1,7 @@
+-- Bootstrap only. Existing production data must be upgraded with reviewed
+-- database/migrations scripts, not by rerunning this entire bootstrap.
+-- After a new bootstrap, install the recovery guard migration and cut over
+-- only when the matching frontend is deployed.
 create extension if not exists pgcrypto;
 
 create table if not exists public.imports (
@@ -51,20 +55,9 @@ create table if not exists public.team_members (
   created_at timestamptz not null default now()
 );
 
-insert into public.team_members (user_id, email, display_name)
-select
-  id,
-  email,
-  case
-    when lower(email) = 'rmphilli@gmail.com' then 'Matt'
-    when lower(email) like '%alex%' then 'Alex'
-    when lower(email) like '%jeff%' then 'Jeff'
-    else initcap(split_part(email, '@', 1))
-  end
-from auth.users
-where email is not null
-on conflict (user_id) do update
-set email = excluded.email;
+-- Provision only individually verified Jeff, Alex, and Matt Auth user IDs.
+-- Never promote all Auth users: public signup does not imply team membership.
+-- Existing production roster entries are preserved by the restoration migration.
 
 create index if not exists observations_member_date_idx
   on public.observations (member_name, date_seen desc);

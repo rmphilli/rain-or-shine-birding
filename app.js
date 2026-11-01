@@ -1,6 +1,8 @@
 const STORAGE_KEY = "rainOrShineBirdingData";
 const BADGE_STORAGE_KEY = "rainOrShineMilestoneBadges";
 const SESSION_STORAGE_KEY = "rainOrShineSupabaseSession";
+const PENDING_IMPORTS_STORAGE_KEY = "rainOrShinePendingImports";
+const RECOVERY_STORAGE_KEY = "rainOrShineBirdingRecoveryData";
 const REMOTE_PAGE_SIZE = 1000;
 const AUTO_SYNC_INTERVAL_MS = 60 * 1000;
 const AUTO_SYNC_MIN_GAP_MS = 15 * 1000;
@@ -176,13 +178,18 @@ const adventureFinds = {
   ],
 };
 
-let observations = loadObservations();
+let pendingImports = loadPendingImports();
+let observations = withPendingImports(loadObservations());
 let userMilestoneBadges = loadMilestoneBadgeStore();
 let appConfig = { supabaseUrl: "", supabaseAnonKey: "" };
 let authSession = loadAuthSession();
 let isRemoteReady = false;
 let sessionRefreshPromise = null;
 let remoteSyncPromise = null;
+let cloudWritePromise = null;
+let importSavePromise = Promise.resolve();
+let latestRemoteObservations = [];
+let sharedDataLoaded = false;
 let lastRemoteSyncAt = 0;
 let authNotice = "";
 let signedInMemberName = "";
@@ -278,6 +285,7 @@ fileInputs.forEach((input) => {
     const hint = event.target.closest(".upload-card").querySelector(".upload-card__hint");
     const member = normalizeMemberName(event.target.dataset.member);
     hint.textContent = "Reading CSV...";
+    input.disabled = true;
 
     try {
       const text = await file.text();
@@ -287,7 +295,6 @@ fileInputs.forEach((input) => {
         throw new Error("No bird rows were found. Use an eBird CSV with a Common Name or Species column.");
       }
 
-      observations = observations.filter((item) => normalizeMemberName(item.member) !== member).concat(imported);
       hint.textContent = isRemoteReady ? "Syncing..." : "Saving...";
       const synced = await saveImport(member, file.name, imported);
       hint.textContent = synced ? `${imported.length} rows shared` : `${imported.length} rows saved here`;
@@ -295,20 +302,25 @@ fileInputs.forEach((input) => {
     } catch (error) {
       hint.textContent = "Try another CSV";
       syncStatus.textContent = `Import failed: ${error.message}`;
+    } finally {
+      input.disabled = false;
     }
   });
 });
 
 resetDataButton.addEventListener("click", () => {
   const confirmed = window.confirm(
-    "Clear the bird data saved in this browser? The shared team database will not be changed."
+    "Clear the bird data saved in this browser, including uploads that have not been shared and recovery copies? The shared team database will not be changed."
   );
   if (!confirmed) return;
 
   observations = [];
+  pendingImports = {};
   userMilestoneBadges = [];
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(BADGE_STORAGE_KEY);
+  localStorage.removeItem(PENDING_IMPORTS_STORAGE_KEY);
+  localStorage.removeItem(RECOVERY_STORAGE_KEY);
   fileInputs.forEach((input) => {
     input.value = "";
     input.closest(".upload-card").querySelector(".upload-card__hint").textContent = "Choose CSV";
@@ -645,7 +657,7 @@ function renderMemberBreakdown() {
     const card = document.createElement("article");
     card.className = "member-card";
     card.innerHTML = `
-      <strong>${member}</strong>
+      <strong>${escapeHtml(member)}</strong>
       <span class="member-card__stats">
         <span>${memberSpeciesCount} Life Listers</span>
         <span>${memberObservations.length} Observations</span>
@@ -1546,12 +1558,9 @@ function setupAuth() {
     }
 
     try {
-      await supabaseAuthRequest("/otp", {
+      await supabaseAuthRequest(`/otp?redirect_to=${encodeURIComponent(location.origin + location.pathname)}`, {
         email,
         create_user: false,
-        options: {
-          emailRedirectTo: location.origin + location.pathname,
-        },
       });
       authStatus.textContent = "Magic link sent. Open it on this device; the shared flock will load automatically.";
     } catch (error) {
@@ -1590,10 +1599,12 @@ function setupAutoSync() {
     syncStatus.textContent = "Offline for now. Uploads stay in this browser until the connection returns.";
   });
   window.addEventListener("storage", (event) => {
-    if (event.key === STORAGE_KEY || event.key === BADGE_STORAGE_KEY) {
-      observations = loadObservations();
+    if (event.key === STORAGE_KEY || event.key === BADGE_STORAGE_KEY || event.key === PENDING_IMPORTS_STORAGE_KEY) {
+      pendingImports = loadPendingImports();
+      observations = withPendingImports(loadObservations());
       userMilestoneBadges = loadMilestoneBadgeStore();
       render();
+      updateCloudButtons();
     }
   });
   document.addEventListener("visibilitychange", refreshIfDue);
@@ -1607,14 +1618,37 @@ async function publishLocalDataToCloud() {
     return;
   }
 
-  if (!observations.length) {
+  // Capture saved uploads before the refresh updates the displayed cloud lists.
+  pendingImports = loadPendingImports();
+  const pending = Object.values(pendingImports);
+  const savedRows = pending.length ? pending.flatMap((entry) => entry.rows) : loadRecoveryObservations();
+  const candidates = savedRows.length ? savedRows : observations.slice();
+  if (!candidates.length) {
     syncStatus.textContent = "There is no saved browser data to publish yet.";
     updateCloudButtons();
     return;
   }
 
+  if (!(await syncRemoteData({ force: true }))) {
+    syncStatus.textContent += " Saved uploads are still on this device. Refresh shared data before trying again.";
+    return;
+  }
+
+  const members = [...new Set(candidates.map((obs) => normalizeMemberName(obs.member)))];
+  let revisions;
+  try {
+    revisions = Object.fromEntries(members.map((member) => [member, getRemoteImportId(member)]));
+  } catch (error) {
+    syncStatus.textContent = error.message;
+    return;
+  }
+  const details = members.map((member) => {
+    const localCount = candidates.filter((obs) => normalizeMemberName(obs.member) === member).length;
+    const cloudCount = latestRemoteObservations.filter((obs) => obs.member === member).length;
+    return `${member}: replace ${cloudCount.toLocaleString()} shared rows with ${localCount.toLocaleString()} saved rows`;
+  });
   const confirmed = window.confirm(
-    "Publish this browser's saved bird data to the shared team database? This will replace each included birder's current cloud list."
+    `Review saved uploads before sharing:\n${details.join("\n")}\n\nThis replaces only the listed members' cloud lists. A teammate may have uploaded a newer list. Continue with these saved copies?`
   );
   if (!confirmed) return;
 
@@ -1623,15 +1657,24 @@ async function publishLocalDataToCloud() {
   syncStatus.textContent = "Publishing saved browser data to the shared team cloud...";
 
   try {
-    const members = [...new Set(observations.map((obs) => normalizeMemberName(obs.member)))];
     for (const member of members) {
-      const memberRows = observations.filter((obs) => normalizeMemberName(obs.member) === member);
-      const synced = await saveImport(member, "Saved browser data", memberRows, { reloadAfterSave: false, quiet: true });
+      const reviewedEntry = pending.find((entry) => entry.member === member);
+      if (reviewedEntry && loadPendingImports()[member]?.id !== reviewedEntry.id) {
+        throw new Error(`${member}'s saved upload changed after your review. Review the latest saved upload again.`);
+      }
+      const memberRows = candidates.filter((obs) => normalizeMemberName(obs.member) === member);
+      const sourceName = pendingImports[member]?.sourceName || "Saved browser data";
+      const synced = await saveImport(member, sourceName, memberRows, {
+        reloadAfterSave: false, quiet: true, expectedImportId: revisions[member],
+      });
       if (!synced) throw new Error(`${member}'s list could not be published.`);
     }
 
-    await syncRemoteData({ force: true, preserveLocalWhenRemoteEmpty: false });
-    syncStatus.textContent = `Published ${observations.length} observations to the shared team cloud. Everyone should see this after sign-in and refresh.`;
+    localStorage.removeItem(RECOVERY_STORAGE_KEY);
+    const refreshed = await syncRemoteData({ force: true, preserveLocalWhenRemoteEmpty: false });
+    syncStatus.textContent = refreshed
+      ? `Published ${candidates.length} observations and refreshed the shared team lists.`
+      : "The uploads were shared, but the latest team lists could not reload. Refresh shared data to check them.";
   } catch (error) {
     syncStatus.textContent = `Publish failed: ${error.message}`;
   } finally {
@@ -1657,7 +1700,7 @@ async function syncRemoteData(options = {}) {
   const { force = false, quiet = false, preserveLocalWhenRemoteEmpty = true } = options;
   if (!isRemoteReady) {
     updateSyncStatus();
-    return;
+    return false;
   }
 
   if (remoteSyncPromise) return remoteSyncPromise;
@@ -1674,12 +1717,14 @@ async function performRemoteSync({ force, quiet, preserveLocalWhenRemoteEmpty })
   if (!(await ensureFreshSession())) {
     updateAuthStatus();
     updateSyncStatus();
-    return;
+    return false;
   }
 
   if (force && !quiet) syncStatus.textContent = "Refreshing shared team data...";
 
   try {
+    // A refresh must not apply a snapshot taken before an in-flight replacement.
+    if (cloudWritePromise) await cloudWritePromise.catch(() => null);
     const [observationRows, badgeRows, rosterRows] = await Promise.all([
       remoteSelect("observations"),
       remoteSelect("user_milestone_badges"),
@@ -1689,9 +1734,21 @@ async function performRemoteSync({ force, quiet, preserveLocalWhenRemoteEmpty })
     const remoteBadges = badgeRows.map(fromRemoteBadge);
     signedInMemberName = rosterRows[0]?.display_name || signedInMemberName;
 
+    latestRemoteObservations = remoteObservations;
+    sharedDataLoaded = true;
+    pendingImports = loadPendingImports();
     if (remoteObservations.length || !preserveLocalWhenRemoteEmpty) {
-      observations = remoteObservations;
+      // Older versions had no pending-upload marker. Keep a private recovery
+      // copy before replacing that cache; never publish it automatically.
+      if (!localStorage.getItem(RECOVERY_STORAGE_KEY) && observations.length &&
+          observations.every((row) => !row.importId) && !Object.keys(pendingImports).length &&
+          !sameObservationRows(observations, remoteObservations)) {
+        localStorage.setItem(RECOVERY_STORAGE_KEY, JSON.stringify(observations));
+      }
+      observations = withPendingImports(remoteObservations);
       userMilestoneBadges = remoteBadges;
+    } else {
+      observations = withPendingImports(observations);
     }
 
     saveObservations();
@@ -1707,11 +1764,16 @@ async function performRemoteSync({ force, quiet, preserveLocalWhenRemoteEmpty })
           ? `Signed in, but the shared database is empty. This browser has ${observations.length} saved observations ready to publish.`
           : "Signed in, but the shared database returned 0 observations. Upload or publish saved data to share it across devices.";
     }
+    if (Object.keys(pendingImports).length) {
+      syncStatus.textContent += ` ${pendingImportMessage()} Choose Review saved uploads to compare and retry.`;
+    }
     updateCloudButtons();
     scheduleMapRefresh();
+    return true;
   } catch (error) {
     syncStatus.textContent = `Signed in, but shared data could not load. ${error.message}`;
     updateCloudButtons();
+    return false;
   }
 }
 
@@ -1785,15 +1847,20 @@ function updateSyncStatus() {
   } else {
     syncStatus.textContent = "Signed in. Loading shared team data...";
   }
+  if (Object.keys(pendingImports).length) syncStatus.textContent += ` ${pendingImportMessage()}`;
   updateCloudButtons();
 }
 
 function updateCloudButtons() {
   refreshSharedDataButton.disabled = !isRemoteReady;
-  publishLocalDataButton.disabled = !isRemoteReady || !observations.length;
-  publishLocalDataButton.textContent = observations.length
-    ? `Publish this browser's data (${observations.length})`
-    : "Publish this browser's data";
+  const pendingRows = Object.values(pendingImports).reduce((total, entry) => total + entry.rows.length, 0);
+  const recoveryRows = loadRecoveryObservations().length;
+  const savedCount = pendingRows || recoveryRows || (!sharedDataLoaded || !latestRemoteObservations.length ? observations.length : 0);
+  publishLocalDataButton.disabled = !isRemoteReady || !savedCount;
+  publishLocalDataButton.textContent = pendingRows
+    ? `Review saved uploads (${pendingRows})`
+    : recoveryRows ? `Review device recovery copy (${recoveryRows})`
+      : savedCount ? `Review saved browser data (${savedCount})` : "No saved uploads to share";
 }
 
 function normalizeSupabaseProjectUrl(value) {
@@ -1830,6 +1897,8 @@ function clearAuthSession(notice = "") {
   authNotice = notice;
   signedInMemberName = "";
   isRemoteReady = false;
+  sharedDataLoaded = false;
+  latestRemoteObservations = [];
   localStorage.removeItem(SESSION_STORAGE_KEY);
 }
 
@@ -1910,11 +1979,15 @@ async function getAssistantReply(message, image) {
   const endpoint = getChatEndpoint();
   if (endpoint) {
     try {
-      const response = await fetchWithTimeout(
+      if (!(await ensureFreshSession())) {
+        assistantStatus.textContent = "Local helper";
+        return `Sign in with your team email to use the live birding assistant. For now: ${getDemoAssistantReply(message, image)}`;
+      }
+      const sendRequest = () => fetchWithTimeout(
         endpoint,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${authSession.access_token}` },
           body: JSON.stringify({
             message,
             image,
@@ -1927,6 +2000,12 @@ async function getAssistantReply(message, image) {
         },
         30000
       );
+      let response = await sendRequest();
+      // A rejected identity has not reached the paid provider. Retry only that
+      // case, once, after rotating the session; never retry a quota or timeout.
+      if (response.status === 401 && authSession?.refresh_token) {
+        if (await ensureFreshSession({ force: true })) response = await sendRequest();
+      }
       const data = await response.json();
       if (!response.ok) {
         const error = new Error(data.error || `Assistant request failed: ${response.status}`);
@@ -2277,36 +2356,95 @@ function compareObservationNewestFirst(a, b) {
 }
 
 async function saveImport(member, sourceName, imported, options = {}) {
-  const { reloadAfterSave = true, quiet = false } = options;
+  member = normalizeMemberName(member);
+  if (!defaultMembers.includes(member) || !Array.isArray(imported) || !imported.length) {
+    throw new Error("Choose a nonempty bird list for Jeff, Alex, or Matt.");
+  }
+  // Persist the independent upload before any network work or display-cache
+  // change. Reloads and other members' imports cannot discard these rows.
+  pendingImports = loadPendingImports();
+  const previous = pendingImports[member];
+  const entry = {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    member, sourceName, rows: imported, savedAt: new Date().toISOString(),
+    recoveryCopies: previous && !sameObservationRows(previous.rows, imported) ? [...(previous.recoveryCopies || []), {
+      sourceName: previous.sourceName, rows: previous.rows, savedAt: previous.savedAt,
+    }] : previous?.recoveryCopies || [],
+  };
+  pendingImports[member] = entry;
+  localStorage.setItem(PENDING_IMPORTS_STORAGE_KEY, JSON.stringify(pendingImports));
+  observations = withPendingImports(observations);
   saveObservations();
   updateCloudButtons();
 
+  const attempt = importSavePromise.catch(() => null).then(() => sharePendingImport(entry, options));
+  importSavePromise = attempt;
+  return attempt;
+}
+
+async function sharePendingImport(entry, options) {
+  const { reloadAfterSave = true, quiet = false } = options;
+  const { member, sourceName, rows: imported } = entry;
   if (!isRemoteReady || !(await ensureFreshSession())) {
-    syncStatus.textContent = `Saved ${imported.length} rows locally. Sign in after Supabase is connected to sync shared data.`;
+    syncStatus.textContent = `Saved ${imported.length} ${member} rows on this device. Sign in, then review saved uploads to share them.`;
     updateCloudButtons();
     return false;
   }
 
   try {
-    await remoteReplaceMemberObservations(member, sourceName, imported);
+    if (!(await syncRemoteData({ force: true, quiet: true }))) {
+      throw new Error("The latest shared lists could not load. Refresh shared data, then review saved uploads to retry.");
+    }
+    // Another local import may have superseded this one while it waited.
+    pendingImports = loadPendingImports();
+    if (pendingImports[member]?.id !== entry.id) return false;
+    const expectedImportId = getRemoteImportId(member);
+    if (Object.hasOwn(options, "expectedImportId") && options.expectedImportId !== expectedImportId) {
+      throw new Error(`${member}'s shared list changed after your review. Review saved uploads again before replacing it.`);
+    }
+    const cloudRowCount = latestRemoteObservations.filter((row) => normalizeMemberName(row.member) === member).length;
+    if (!Object.hasOwn(options, "expectedImportId") && imported.length < cloudRowCount) {
+      const confirmed = window.confirm(
+        `${member}'s shared list has ${cloudRowCount.toLocaleString()} rows. This CSV has ${imported.length.toLocaleString()} rows. Sharing it replaces the entire ${member} list, including birds absent from this CSV.\n\nUse a full life-list export to keep earlier birds. Replace the shared list with this smaller CSV?`
+      );
+      if (!confirmed) {
+        syncStatus.textContent = `Kept ${member}'s shared list unchanged. The smaller CSV is saved on this device; review saved uploads when you are ready.`;
+        return false;
+      }
+      if (loadPendingImports()[member]?.id !== entry.id) throw new Error(`${member}'s saved upload changed. Review the latest saved upload again.`);
+    }
+    cloudWritePromise = remoteReplaceMemberObservations(member, sourceName, imported, expectedImportId);
+    const savedCount = await cloudWritePromise;
+    cloudWritePromise = null;
+    if (savedCount !== imported.length) throw new Error("The shared service did not confirm every uploaded row. Review saved uploads before retrying.");
+    pendingImports = loadPendingImports();
+    if (pendingImports[member]?.id === entry.id) {
+      delete pendingImports[member];
+      localStorage.setItem(PENDING_IMPORTS_STORAGE_KEY, JSON.stringify(pendingImports));
+    }
 
     if (reloadAfterSave) {
-      await syncRemoteData({ force: true, preserveLocalWhenRemoteEmpty: false });
-      syncStatus.textContent = `Synced ${imported.length} ${member} observations to Supabase and refreshed shared team data.`;
+      const refreshed = await syncRemoteData({ force: true, preserveLocalWhenRemoteEmpty: false });
+      syncStatus.textContent = refreshed
+        ? `Synced ${imported.length} ${member} observations and refreshed shared team data.`
+        : `Shared ${imported.length} ${member} observations, but the latest team lists could not reload. Refresh shared data to check them.`;
     } else if (!quiet) {
       syncStatus.textContent = `Synced ${imported.length} ${member} observations to Supabase.`;
     }
+    if (Object.keys(pendingImports).length) syncStatus.textContent += ` ${pendingImportMessage()}`;
     return true;
   } catch (error) {
-    syncStatus.textContent = `Saved locally, but Supabase sync failed: ${error.message}`;
+    syncStatus.textContent = `Saved locally, but sharing failed: ${error.message}`;
     return false;
   } finally {
+    cloudWritePromise = null;
     updateCloudButtons();
   }
 }
 
 async function syncMilestoneBadges() {
-  const speciesBadges = userMilestoneBadges.filter((badge) => badge.badge_kind === "species");
+  const speciesBadges = userMilestoneBadges.filter((badge) => badge.badge_kind === "species" && !pendingImports[normalizeMemberName(badge.member_name)]);
+  if (!sharedDataLoaded) return;
   if (!isRemoteReady || !speciesBadges.length || !(await ensureFreshSession())) return;
   try {
     await remoteUpsert("user_milestone_badges", speciesBadges.map(toRemoteBadge), "id");
@@ -2337,7 +2475,8 @@ async function remoteSelect(table) {
   let offset = 0;
 
   while (true) {
-    const response = await authorizedFetch(`${appConfig.supabaseUrl}/rest/v1/${table}?select=*`, {
+    const orderColumn = table === "team_members" ? "user_id" : "id";
+    const response = await authorizedFetch(`${appConfig.supabaseUrl}/rest/v1/${table}?select=*&order=${orderColumn}.asc`, {
       method: "GET",
       headers: {
         Range: `${offset}-${offset + REMOTE_PAGE_SIZE - 1}`,
@@ -2356,13 +2495,14 @@ async function remoteSelect(table) {
   return rows;
 }
 
-async function remoteReplaceMemberObservations(member, sourceName, imported) {
-  const response = await authorizedFetch(`${appConfig.supabaseUrl}/rest/v1/rpc/replace_member_observations`, {
+async function remoteReplaceMemberObservations(member, sourceName, imported, expectedImportId) {
+  const response = await authorizedFetch(`${appConfig.supabaseUrl}/rest/v1/rpc/replace_member_observations_guarded`, {
     method: "POST",
     headers: { Prefer: "return=representation" },
     body: JSON.stringify({
       p_member_name: normalizeMemberName(member),
       p_source_name: sourceName,
+      p_expected_import_id: expectedImportId,
       p_observations: imported.map((obs) => toRemoteObservation(obs, null)),
     }),
   });
@@ -2457,6 +2597,7 @@ function fromRemoteObservation(row) {
     location: row.location_name || "Unlisted place",
     checklist: row.checklist_id || "",
     sourceName: row.source_name || "",
+    ...(row.import_id ? { importId: row.import_id } : {}),
   };
 }
 
@@ -2849,6 +2990,57 @@ function aggregateMapLocations(points) {
   });
 }
 
+function loadPendingImports() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PENDING_IMPORTS_STORAGE_KEY));
+    if (!stored || typeof stored !== "object" || Array.isArray(stored)) return {};
+    return Object.fromEntries(defaultMembers.filter((member) => {
+      const entry = stored[member];
+      return entry?.member === member && typeof entry.id === "string" &&
+        Array.isArray(entry.rows) && entry.rows.length && entry.rows.every((row) => row && normalizeMemberName(row.member) === member);
+    }).map((member) => [member, stored[member]]));
+  } catch {
+    return {};
+  }
+}
+
+function withPendingImports(rows) {
+  const pendingMembers = new Set(Object.keys(pendingImports));
+  return rows.filter((row) => !pendingMembers.has(normalizeMemberName(row.member)))
+    .concat(Object.values(pendingImports).flatMap((entry) => entry.rows));
+}
+
+function loadRecoveryObservations() {
+  try {
+    const rows = JSON.parse(localStorage.getItem(RECOVERY_STORAGE_KEY));
+    return Array.isArray(rows) ? rows : [];
+  } catch {
+    return [];
+  }
+}
+
+function sameObservationRows(first, second) {
+  const comparable = (rows) => rows.map((row) => toRemoteObservation(row, null))
+    .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+  return JSON.stringify(comparable(first)) === JSON.stringify(comparable(second));
+}
+
+function getRemoteImportId(member) {
+  const rows = latestRemoteObservations.filter((row) => normalizeMemberName(row.member) === member);
+  if (!rows.length) return null;
+  const revisions = new Set(rows.map((row) => row.importId || null));
+  if (revisions.size !== 1 || revisions.has(null)) {
+    throw new Error(`${member}'s shared list needs a safety check before replacement. Your upload remains saved on this device.`);
+  }
+  return rows[0].importId;
+}
+
+function pendingImportMessage() {
+  return Object.values(pendingImports).map((entry) =>
+    `${entry.member}'s upload (${entry.rows.length.toLocaleString()} rows) is saved on this device and has not been shared.`
+  ).join(" ");
+}
+
 function saveObservations() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(observations));
 }
@@ -2859,7 +3051,8 @@ function saveMilestoneBadgeStore() {
 
 function loadObservations() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    const rows = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    return Array.isArray(rows) ? rows : [];
   } catch {
     return [];
   }
@@ -2867,7 +3060,8 @@ function loadObservations() {
 
 function loadMilestoneBadgeStore() {
   try {
-    return JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY)) || [];
+    const badges = JSON.parse(localStorage.getItem(BADGE_STORAGE_KEY));
+    return Array.isArray(badges) ? badges : [];
   } catch {
     return [];
   }
