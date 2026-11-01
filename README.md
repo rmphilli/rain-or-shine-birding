@@ -38,7 +38,7 @@ Live site: [rosbirding.netlify.app](https://rosbirding.netlify.app/). On 2026-11
 | Data | Browser localStorage plus direct Supabase Auth/PostgREST requests; no browser Supabase SDK dependency |
 | Database | `database/schema.sql`: imports, observations, milestone badges, team roster, RLS, replacement RPC |
 | Backend | Four CommonJS handlers under `netlify/functions/` |
-| Maps | Pinned Leaflet/markercluster CDN scripts; CARTO tiles with OpenStreetMap attribution |
+| Maps | Pinned Leaflet/markercluster CDN scripts; OpenStreetMap standard raster tiles with linked attribution; no basemap key required |
 | Public assets | `assets/`, `samples/`, root `team-birding-scene.jpg` |
 | Tooling | Dependency-free Node scripts and `node:test`; no bundler or UI framework |
 

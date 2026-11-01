@@ -2662,10 +2662,10 @@ function renderMap() {
       zoomControl: false,
     }).setView([39.5, -98.35], 4);
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
-      subdomains: "abcd",
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxNativeZoom: 19,
       maxZoom: 20,
-      attribution: "&copy; OpenStreetMap contributors &copy; CARTO",
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     }).addTo(birdMap);
     addExpeditionMapControls(birdMap);
   }
