@@ -19,7 +19,7 @@ Start with [PROJECT-HANDOFF.md](PROJECT-HANDOFF.md) for dated findings, [AGENTS.
 ## What works in the code
 
 - Per-member CSV replacement imports and local browser persistence.
-- Combined species list, sum of personal life-list counts, all-three overlap, target species, and searchable observation ledger.
+- Combined species list, sum of personal life-list counts, all-three overlap, target species, and searchable observation ledger. The ledger shows 100 rows per page; search covers every observation before paging.
 - Leaflet expedition map, clustered and member-specific markers, map filtering, and estimated mileage from Morton, Illinois.
 - First-bird and every-50-species badges, trophy cases, and birder profiles.
 - Supabase magic links, shared data, pagination beyond 1,000 rows, token refresh, and periodic/focus refresh.

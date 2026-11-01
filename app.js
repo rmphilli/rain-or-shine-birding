@@ -4,6 +4,7 @@ const SESSION_STORAGE_KEY = "rainOrShineSupabaseSession";
 const PENDING_IMPORTS_STORAGE_KEY = "rainOrShinePendingImports";
 const RECOVERY_STORAGE_KEY = "rainOrShineBirdingRecoveryData";
 const REMOTE_PAGE_SIZE = 1000;
+const LEDGER_PAGE_SIZE = 100;
 const AUTO_SYNC_INTERVAL_MS = 60 * 1000;
 const AUTO_SYNC_MIN_GAP_MS = 15 * 1000;
 const defaultMembers = ["Jeff", "Alex", "Matt"];
@@ -11,6 +12,7 @@ const displayDateFormatter = new Intl.DateTimeFormat(undefined, { month: "short"
 const DISPLAY_DATE_CACHE_LIMIT = 512;
 const displayDateCache = new Map();
 let renderDataCache = null;
+let ledgerPage = 1;
 const teamSpeciesMembers = ["Alex", "Jeff", "Matt"];
 const emailMemberMap = {
   "rmphilli@gmail.com": "Matt",
@@ -213,6 +215,10 @@ const mapEmpty = document.querySelector("#mapEmpty");
 const mapContainer = document.querySelector("#birdMap");
 const memberFilter = document.querySelector("#memberFilter");
 const speciesSearch = document.querySelector("#speciesSearch");
+const ledgerTableWrap = document.querySelector("#ledgerTableWrap");
+const ledgerPageStatus = document.querySelector("#ledgerPageStatus");
+const ledgerPreviousButton = document.querySelector("#ledgerPrevious");
+const ledgerNextButton = document.querySelector("#ledgerNext");
 const memberBreakdown = document.querySelector("#memberBreakdown");
 const profileTrophyCase = document.querySelector("#profileTrophyCase");
 const birderTypeBadges = document.querySelector("#birderTypeBadges");
@@ -345,7 +351,13 @@ resetDataButton.addEventListener("click", () => {
 });
 
 memberFilter.addEventListener("change", renderMap);
-speciesSearch.addEventListener("input", renderSpeciesTable);
+speciesSearch.addEventListener("input", () => showLedgerPage(1));
+ledgerPreviousButton.addEventListener("click", () => {
+  if (!ledgerPreviousButton.disabled) showLedgerPage(ledgerPage - 1);
+});
+ledgerNextButton.addEventListener("click", () => {
+  if (!ledgerNextButton.disabled) showLedgerPage(ledgerPage + 1);
+});
 refreshSharedDataButton.addEventListener("click", () => syncRemoteData({ force: true }));
 publishLocalDataButton.addEventListener("click", publishLocalDataToCloud);
 nearbyTargetsRefreshButton.addEventListener("click", () => loadNearbyTargetSightings({ announce: true }));
@@ -2337,6 +2349,12 @@ function formatMemberDotList(members) {
     .join("")}</span>`;
 }
 
+function showLedgerPage(page) {
+  ledgerPage = page;
+  renderSpeciesTable();
+  ledgerTableWrap.scrollTop = 0;
+}
+
 function renderSpeciesTable() {
   const query = speciesSearch.value.trim().toLowerCase();
   const entries = aggregateObservationLedger()
@@ -2346,10 +2364,19 @@ function renderSpeciesTable() {
     })
     .sort(compareObservationNewestFirst);
 
+  const pageCount = Math.max(1, Math.ceil(entries.length / LEDGER_PAGE_SIZE));
+  ledgerPage = Math.max(1, Math.min(ledgerPage, pageCount));
+  const start = (ledgerPage - 1) * LEDGER_PAGE_SIZE;
+  const end = Math.min(start + LEDGER_PAGE_SIZE, entries.length);
+  const rangeStart = entries.length ? start + 1 : 0;
+  ledgerPageStatus.textContent = `Showing ${rangeStart.toLocaleString()}–${end.toLocaleString()} of ${entries.length.toLocaleString()} ledger entries. Page ${entries.length ? ledgerPage : 0} of ${entries.length ? pageCount : 0}.`;
+  ledgerPreviousButton.disabled = ledgerPage === 1;
+  ledgerNextButton.disabled = ledgerPage === pageCount;
+
   speciesTable.innerHTML = "";
   tableEmpty.style.display = entries.length ? "none" : "block";
 
-  entries.forEach((obs) => {
+  entries.slice(start, end).forEach((obs) => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td><strong>${escapeHtml(obs.species)}</strong>${obs.scientific ? `<br><span class="scientific">${escapeHtml(obs.scientific)}</span>` : ""}</td>

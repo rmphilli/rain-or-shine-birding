@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
-    <link rel="stylesheet" href="./styles.css?v=20260729-1" />
+    <link rel="stylesheet" href="./styles.css?v=20261101-layout1" />
     <link rel="stylesheet" href="./bazaar.css?v=20260729-1" />
   </head>
   <body>
@@ -150,12 +150,14 @@
             <p id="teamTravelMeta" class="expedition-log__note">Estimated team trail from Morton, Illinois.</p>
           </div>
           <div class="map-frame">
-            <span class="map-frame__ufo" aria-hidden="true">
-              <svg viewBox="0 0 80 32">
-                <path d="M26 15c2-8 8-12 14-12s12 4 14 12" />
-                <ellipse cx="40" cy="17" rx="31" ry="9" />
-                <path d="M20 21 12 30m48-9 8 9M34 25l-2 6m14-6 2 6" />
-              </svg>
+            <span class="map-frame__sky" aria-hidden="true">
+              <span class="map-frame__ufo">
+                <svg viewBox="0 0 80 32">
+                  <path d="M26 15c2-8 8-12 14-12s12 4 14 12" />
+                  <ellipse cx="40" cy="17" rx="31" ry="9" />
+                  <path d="M20 21 12 30m48-9 8 9M34 25l-2 6m14-6 2 6" />
+                </svg>
+              </span>
             </span>
             <span class="map-frame__bigfoot" aria-hidden="true">
               <svg viewBox="0 0 72 96">
@@ -176,7 +178,7 @@
             <span><i class="legend-marker legend-marker--shared-three" aria-hidden="true">&#9651;</i>Team outing</span>
           </div>
           <figure class="map-artwork" aria-label="Claymation birding scene">
-            <img src="./assets/team-birding-scene.jpg" alt="Claymation birders and birds gathered in a whimsical rainy forest scene" loading="lazy" decoding="async" />
+            <img src="./assets/team-birding-scene.jpg" alt="Claymation birders and birds gathered in a whimsical rainy forest scene" width="1672" height="941" loading="lazy" decoding="async" />
           </figure>
         </div>
 
@@ -422,7 +424,14 @@
           </div>
           <input id="speciesSearch" type="search" placeholder="Search species, place, or birder" aria-label="Search observations" />
         </div>
-        <div class="table-wrap">
+        <div class="ledger-pagination" aria-label="Observation ledger pages">
+          <p id="ledgerPageStatus" class="ledger-pagination__status" role="status" aria-live="polite" aria-atomic="true">Showing 0–0 of 0 ledger entries. Page 0 of 0.</p>
+          <div class="ledger-pagination__actions">
+            <button id="ledgerPrevious" class="ghost-button" type="button" aria-controls="speciesTable" aria-describedby="ledgerPageStatus" disabled>Previous page</button>
+            <button id="ledgerNext" class="ghost-button" type="button" aria-controls="speciesTable" aria-describedby="ledgerPageStatus" disabled>Next page</button>
+          </div>
+        </div>
+        <div id="ledgerTableWrap" class="table-wrap" role="region" aria-label="Observation ledger rows" tabindex="0">
           <table>
             <thead>
               <tr>
@@ -450,6 +459,6 @@
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
-    <script src="./app.js?v=20261101-smooth3"></script>
+    <script src="./app.js?v=20261101-smooth4"></script>
   </body>
 </html>
