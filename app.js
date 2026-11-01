@@ -7,6 +7,10 @@ const REMOTE_PAGE_SIZE = 1000;
 const AUTO_SYNC_INTERVAL_MS = 60 * 1000;
 const AUTO_SYNC_MIN_GAP_MS = 15 * 1000;
 const defaultMembers = ["Jeff", "Alex", "Matt"];
+const displayDateFormatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+const DISPLAY_DATE_CACHE_LIMIT = 512;
+const displayDateCache = new Map();
+let renderDataCache = null;
 const teamSpeciesMembers = ["Alex", "Jeff", "Matt"];
 const emailMemberMap = {
   "rmphilli@gmail.com": "Matt",
@@ -190,6 +194,9 @@ let cloudWritePromise = null;
 let importSavePromise = Promise.resolve();
 let latestRemoteObservations = [];
 let sharedDataLoaded = false;
+let knownRemoteBadgeRows = new Map();
+let badgeSyncPromise = null;
+const targetPhotoRequests = new Map();
 let lastRemoteSyncAt = 0;
 let authNotice = "";
 let signedInMemberName = "";
@@ -248,6 +255,12 @@ let birdMap = null;
 let birdMapLayer = null;
 let birdMapBounds = [];
 let birdMapSelectedMarker = null;
+let birdMapObservations = null;
+let birdMapMember = null;
+let birdMapSmallScreen = null;
+let birdMapSupportsHover = null;
+let birdMapHasFitted = false;
+let birdMapRefreshFrame = null;
 let ambientAudioContext = null;
 let ambientMasterGain = null;
 let ambientRainDropTimer = null;
@@ -577,20 +590,29 @@ function titleCase(value) {
 }
 
 function render() {
-  renderMemberFilter();
-  renderStats();
-  renderTravelSummary();
-  renderMemberBreakdown();
-  renderNearbyTargetSightings();
-  renderBirderTypeBadges();
-  renderProfileTrophyCase();
-  renderTeamSpeciesTable();
-  renderTeamTargetsTable();
-  renderSpeciesTable();
-  renderMap();
+  // Reuse domain calculations only within this synchronous render. Direct
+  // callers and the next render must always see the current observations.
+  const previousCache = renderDataCache;
+  renderDataCache = { speciesGroups: null, memberSpecies: new Map() };
+  try {
+    renderMemberFilter();
+    renderStats();
+    renderTravelSummary();
+    renderMemberBreakdown();
+    renderNearbyTargetSightings();
+    renderBirderTypeBadges();
+    renderProfileTrophyCase();
+    renderTeamSpeciesTable();
+    renderTeamTargetsTable();
+    renderSpeciesTable();
+    renderMap();
+  } finally {
+    renderDataCache = previousCache;
+  }
 }
 
 function speciesGroups() {
+  if (renderDataCache?.speciesGroups) return renderDataCache.speciesGroups;
   const groups = new Map();
   observations.filter(isLifeListEligible).forEach((obs) => {
     const speciesId = getSpeciesId(obs);
@@ -609,7 +631,9 @@ function speciesGroups() {
     if (obs.location) group.locations.add(obs.location);
   });
 
-  return [...groups.values()].sort((a, b) => a.species.localeCompare(b.species));
+  const sortedGroups = [...groups.values()].sort((a, b) => a.species.localeCompare(b.species));
+  if (renderDataCache) renderDataCache.speciesGroups = sortedGroups;
+  return sortedGroups;
 }
 
 function renderStats() {
@@ -892,31 +916,45 @@ function formatRelativeObservationDate(dateValue) {
 }
 
 async function loadTargetBirdPhoto(target, photoLink) {
+  const photo = await getTargetBirdPhoto(target);
+  if (!photo || photoLink.isConnected === false) return;
+  const image = document.createElement("img");
+  image.src = photo.imageUrl;
+  image.alt = `${target.species} reference photo`;
+  image.loading = "lazy";
+  image.decoding = "async";
+  photoLink.href = photo.pageUrl || target.url || "#";
+  photoLink.title = "Reference photo from Wikimedia";
+  photoLink.replaceChildren(image);
+}
+
+async function getTargetBirdPhoto(target) {
   const titles = [...new Set([target.species, target.scientific].filter(Boolean))];
-  for (const title of titles) {
-    try {
-      const response = await fetchWithTimeout(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
-        { headers: { Accept: "application/json" } },
-        6000
-      );
-      if (!response.ok) continue;
-      const page = await response.json();
-      const imageUrl = page.thumbnail?.source || page.originalimage?.source;
-      if (!imageUrl) continue;
-      const image = document.createElement("img");
-      image.src = imageUrl;
-      image.alt = `${target.species} reference photo`;
-      image.loading = "lazy";
-      image.decoding = "async";
-      photoLink.href = page.content_urls?.desktop?.page || target.url || "#";
-      photoLink.title = "Reference photo from Wikimedia";
-      photoLink.replaceChildren(image);
-      return;
-    } catch {
-      // Keep the illustrated bird placeholder if Wikimedia is unavailable.
+  const key = JSON.stringify(titles);
+  if (targetPhotoRequests.has(key)) return targetPhotoRequests.get(key);
+  const request = (async () => {
+    for (const title of titles) {
+      try {
+        const response = await fetchWithTimeout(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+          { headers: { Accept: "application/json" } },
+          6000
+        );
+        if (!response.ok) continue;
+        const page = await response.json();
+        const imageUrl = page.thumbnail?.source || page.originalimage?.source;
+        if (imageUrl) return { imageUrl, pageUrl: page.content_urls?.desktop?.page || "" };
+      } catch {
+        // Keep the illustrated bird placeholder if Wikimedia is unavailable.
+      }
     }
-  }
+    return null;
+  })();
+  targetPhotoRequests.set(key, request);
+  if (targetPhotoRequests.size > 64) targetPhotoRequests.delete(targetPhotoRequests.keys().next().value);
+  const photo = await request;
+  if (!photo && targetPhotoRequests.get(key) === request) targetPhotoRequests.delete(key);
+  return photo;
 }
 
 async function loadNearbyTargetSightings({ announce = false } = {}) {
@@ -1733,10 +1771,13 @@ async function performRemoteSync({ force, quiet, preserveLocalWhenRemoteEmpty })
     const remoteObservations = observationRows.map(fromRemoteObservation);
     const remoteBadges = badgeRows.map(fromRemoteBadge);
     signedInMemberName = rosterRows[0]?.display_name || signedInMemberName;
+    knownRemoteBadgeRows = new Map(remoteBadges.map((badge) => [badge.id, JSON.stringify(toRemoteBadge(badge))]));
 
     latestRemoteObservations = remoteObservations;
     sharedDataLoaded = true;
     pendingImports = loadPendingImports();
+    let nextObservations;
+    let nextBadges;
     if (remoteObservations.length || !preserveLocalWhenRemoteEmpty) {
       // Older versions had no pending-upload marker. Keep a private recovery
       // copy before replacing that cache; never publish it automatically.
@@ -1745,15 +1786,26 @@ async function performRemoteSync({ force, quiet, preserveLocalWhenRemoteEmpty })
           !sameObservationRows(observations, remoteObservations)) {
         localStorage.setItem(RECOVERY_STORAGE_KEY, JSON.stringify(observations));
       }
-      observations = withPendingImports(remoteObservations);
-      userMilestoneBadges = remoteBadges;
+      nextObservations = withPendingImports(remoteObservations);
+      nextBadges = remoteBadges;
     } else {
-      observations = withPendingImports(observations);
+      nextObservations = withPendingImports(observations);
+      nextBadges = userMilestoneBadges;
     }
 
-    saveObservations();
-    saveMilestoneBadgeStore();
-    render();
+    const observationsChanged = JSON.stringify(nextObservations) !== JSON.stringify(observations);
+    const badgesChanged = JSON.stringify(nextBadges) !== JSON.stringify(userMilestoneBadges);
+    if (observationsChanged) {
+      observations = nextObservations;
+      saveObservations();
+    }
+    if (badgesChanged) {
+      userMilestoneBadges = nextBadges;
+      saveMilestoneBadgeStore();
+    }
+    // A routine read of unchanged lists updates status, without reconstructing
+    // thousands of table rows or disturbing the map the user is exploring.
+    if (observationsChanged || badgesChanged) render();
     updateAuthStatus();
     lastRemoteSyncAt = Date.now();
     if (remoteObservations.length) {
@@ -1768,7 +1820,6 @@ async function performRemoteSync({ force, quiet, preserveLocalWhenRemoteEmpty })
       syncStatus.textContent += ` ${pendingImportMessage()} Choose Review saved uploads to compare and retry.`;
     }
     updateCloudButtons();
-    scheduleMapRefresh();
     return true;
   } catch (error) {
     syncStatus.textContent = `Signed in, but shared data could not load. ${error.message}`;
@@ -2088,9 +2139,11 @@ function calculateMilestoneBirdBadges(userId) {
 }
 
 function getUniqueLifeListSpecies(member) {
+  const normalizedMember = normalizeMemberName(member);
+  if (renderDataCache?.memberSpecies.has(normalizedMember)) return renderDataCache.memberSpecies.get(normalizedMember);
   const firstBySpecies = new Map();
   observations
-    .filter((obs) => normalizeMemberName(obs.member) === normalizeMemberName(member))
+    .filter((obs) => normalizeMemberName(obs.member) === normalizedMember)
     .filter(isLifeListEligible)
     .forEach((obs) => {
       const speciesId = getSpeciesId(obs);
@@ -2100,7 +2153,9 @@ function getUniqueLifeListSpecies(member) {
       }
     });
 
-  return [...firstBySpecies.values()].sort(compareLifeListEntries);
+  const lifeList = [...firstBySpecies.values()].sort(compareLifeListEntries);
+  if (renderDataCache) renderDataCache.memberSpecies.set(normalizedMember, lifeList);
+  return lifeList;
 }
 
 function compareLifeListEntries(a, b) {
@@ -2210,9 +2265,13 @@ function ordinal(value) {
 }
 
 function formatDate(value) {
+  if (displayDateCache.has(value)) return displayDateCache.get(value);
   const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const formatted = displayDateFormatter.format(date);
+  if (displayDateCache.size >= DISPLAY_DATE_CACHE_LIMIT) displayDateCache.delete(displayDateCache.keys().next().value);
+  displayDateCache.set(value, formatted);
+  return formatted;
 }
 
 function capitalize(value) {
@@ -2443,13 +2502,28 @@ async function sharePendingImport(entry, options) {
 }
 
 async function syncMilestoneBadges() {
-  const speciesBadges = userMilestoneBadges.filter((badge) => badge.badge_kind === "species" && !pendingImports[normalizeMemberName(badge.member_name)]);
-  if (!sharedDataLoaded) return;
-  if (!isRemoteReady || !speciesBadges.length || !(await ensureFreshSession())) return;
+  if (badgeSyncPromise) {
+    try { await badgeSyncPromise; } catch { return; }
+    return syncMilestoneBadges();
+  }
+  if (!sharedDataLoaded || !isRemoteReady) return;
+  const rows = userMilestoneBadges
+    .filter((badge) => badge.badge_kind === "species" && !pendingImports[normalizeMemberName(badge.member_name)])
+    .map(toRemoteBadge)
+    .filter((row) => knownRemoteBadgeRows.get(row.id) !== JSON.stringify(row));
+  if (!rows.length) return;
+  const write = (async () => {
+    if (!(await ensureFreshSession())) return;
+    await remoteUpsert("user_milestone_badges", rows, "id");
+    rows.forEach((row) => knownRemoteBadgeRows.set(row.id, JSON.stringify(row)));
+  })();
+  badgeSyncPromise = write;
   try {
-    await remoteUpsert("user_milestone_badges", speciesBadges.map(toRemoteBadge), "id");
+    await write;
   } catch (error) {
     syncStatus.textContent = `Badge sync failed: ${error.message}`;
+  } finally {
+    if (badgeSyncPromise === write) badgeSyncPromise = null;
   }
 }
 
@@ -2645,6 +2719,9 @@ function renderMap() {
   const selected = memberFilter.value;
   const isSmallScreen = window.matchMedia("(max-width: 620px)").matches;
   const supportsHover = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  if (birdMap && birdMapObservations === observations && birdMapMember === selected &&
+      birdMapSmallScreen === isSmallScreen && birdMapSupportsHover === supportsHover) return;
+
   const points = observations
     .filter((obs) => selected === "all" || normalizeMemberName(obs.member) === selected)
     .filter((obs) => obs.latitude !== null && obs.longitude !== null);
@@ -2660,6 +2737,7 @@ function renderMap() {
     birdMap = L.map(mapContainer, {
       scrollWheelZoom: false,
       zoomControl: false,
+      trackResize: false,
     }).setView([39.5, -98.35], 4);
 
     L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -2670,11 +2748,17 @@ function renderMap() {
     addExpeditionMapControls(birdMap);
   }
 
+  const shouldFit = points.length && (!birdMapHasFitted || birdMapMember !== selected);
   if (birdMapLayer) birdMapLayer.remove();
   birdMapSelectedMarker = null;
-  birdMapLayer = createBirdMapLayer(isSmallScreen).addTo(birdMap);
+  birdMapLayer = createBirdMapLayer(isSmallScreen);
+  birdMapObservations = observations;
+  birdMapMember = selected;
+  birdMapSmallScreen = isSmallScreen;
+  birdMapSupportsHover = supportsHover;
   if (!points.length) {
     birdMapBounds = [];
+    birdMapLayer.addTo(birdMap);
     return;
   }
 
@@ -2732,7 +2816,9 @@ function renderMap() {
     bounds.push([location.latitude, location.longitude]);
   });
 
-  fitMapToBounds(bounds);
+  birdMapBounds = bounds;
+  birdMapLayer.addTo(birdMap);
+  if (shouldFit) fitMapToBounds(bounds);
 }
 
 function createBirdMapLayer(isSmallScreen) {
@@ -2930,23 +3016,23 @@ function selectMapMarker(marker) {
 
 function fitMapToBounds(bounds) {
   birdMapBounds = bounds;
+  if (!birdMap || !bounds.length) return;
   const isSmallScreen = window.matchMedia("(max-width: 620px)").matches;
-  const fit = () => {
-    birdMap.invalidateSize();
-    birdMap.fitBounds(bounds, {
-      paddingTopLeft: isSmallScreen ? [32, 66] : [42, 52],
-      paddingBottomRight: isSmallScreen ? [32, 34] : [76, 42],
-      maxZoom: 12,
-    });
-  };
-  fit();
-  window.setTimeout(fit, 180);
-  window.setTimeout(fit, 650);
+  birdMap.invalidateSize({ pan: false });
+  birdMap.fitBounds(bounds, {
+    paddingTopLeft: isSmallScreen ? [32, 66] : [42, 52],
+    paddingBottomRight: isSmallScreen ? [32, 34] : [76, 42],
+    maxZoom: 12,
+    animate: false,
+  });
+  birdMapHasFitted = true;
 }
 
 function scheduleMapRefresh() {
-  window.requestAnimationFrame(() => {
-    if (birdMap) birdMap.invalidateSize();
+  if (birdMapRefreshFrame !== null) return;
+  birdMapRefreshFrame = window.requestAnimationFrame(() => {
+    birdMapRefreshFrame = null;
+    if (birdMap) birdMap.invalidateSize({ pan: false, debounceMoveend: true });
     renderMap();
   });
 }
@@ -3042,11 +3128,13 @@ function pendingImportMessage() {
 }
 
 function saveObservations() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(observations));
+  const value = JSON.stringify(observations);
+  if (localStorage.getItem(STORAGE_KEY) !== value) localStorage.setItem(STORAGE_KEY, value);
 }
 
 function saveMilestoneBadgeStore() {
-  localStorage.setItem(BADGE_STORAGE_KEY, JSON.stringify(userMilestoneBadges));
+  const value = JSON.stringify(userMilestoneBadges);
+  if (localStorage.getItem(BADGE_STORAGE_KEY) !== value) localStorage.setItem(BADGE_STORAGE_KEY, value);
 }
 
 function loadObservations() {

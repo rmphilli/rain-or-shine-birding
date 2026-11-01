@@ -2,6 +2,14 @@
 
 ## Current restoration: 2026-11-01
 
+### Performance follow-up
+
+The owner confirmed that the repaired map works, then reported stutter. Reproductions using the actual app code found redundant work: a ten-event resize burst rebuilt marker layers ten times and eventually caused 33 map fits; full rendering repeatedly calculated the same life lists and formatted 4,165 dates with fresh locale-format options. Unchanged background cloud refreshes also rebuilt all tables and the map and resent badges/photos.
+
+The performance pass coalesces resize work, preserves the map viewport/selection during unrelated renders, fits only for the first populated map or deliberate member changes, and attaches already-populated marker layers. It reuses date formatting with a bounded cache and scopes domain memoization to one synchronous render, avoiding stale calculations between data changes. Unchanged syncs retain DOM nodes/data references, badge writes are deduplicated and serialized, and reference photos share bounded cached/in-flight lookups. Observation data, security controls, map styling, clustering, table content and search remain intact; no pagination or UI redesign was introduced.
+
+Measurements use the private 4,165-row backup only in memory, with all requests intercepted: warm full render median about 659 ms before / 144 ms after; ledger render 379 / 49 ms. The table still contains 4,132 ledger rows, 335 team species and 179 targets. A separate actual-data sync check retained the same DOM node across five unchanged refreshes, made zero extra badge writes, and retained 4,165 observations / 335 species / 156 shared species / 713 displayed team score. These are JavaScript/DOM-substitute timings, not browser frame rates or network/page-load claims. Actual browser layout and Leaflet paint cost were not measured. Full suite: 92 passing cases, including 19 new data/map/sync performance regressions. App cache version is `20261101-smooth3`.
+
 Canonical repository remains `C:\Users\12177\Documents\Codex\2026-05-29\what-can-i-do-here-on\work\rain-or-shine-live`. Live URL: https://rosbirding.netlify.app/ . The configured Supabase project is now **ACTIVE_HEALTHY** and contains the existing lists; no source CSV had to be re-created and no sample data was published.
 
 | Member | Saved observations | Species shown by app | Latest saved sighting |
