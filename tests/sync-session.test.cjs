@@ -44,6 +44,70 @@ test('offline save keeps observations locally without attempting a cloud request
   assert.equal(JSON.parse(app.saved.get('rainOrShineBirdingData')).length, 1); assert.equal(app.calls.length, 0);
 });
 
+test('same CSV can be selected again after a local-only upload and then shared after sign-in', async () => {
+  const app = await createApp();
+  const input = app.inputs.find(item => item.dataset.member === 'Jeff');
+  const name = 'updated.csv';
+  const selectedValue = `C:\\fakepath\\${name}`;
+  const csv = 'Species,Date\nNorthern Cardinal,2026-01-01\nHawaii Amakihi,2026-10-31';
+  const selectFile = async () => {
+    // Native file inputs do not emit change when the selected value is unchanged.
+    if (input.value === selectedValue) return false;
+    input.value = selectedValue;
+    await app.importCsv('Jeff', csv, name);
+    return true;
+  };
+  assert.equal(await selectFile(), true);
+  assert.equal(input.value, ''); assert.equal(input.disabled, false);
+  assert.equal(JSON.parse(app.saved.get(pendingKey)).Jeff.rows.length, 2);
+  assert.match(input.querySelector('.upload-card__hint').textContent, /2 rows saved here/);
+  assert.match(app.element('#syncStatus').textContent, /Saved 2 Jeff rows on this device/);
+  assert.equal(app.calls.length, 0);
+
+  app.configureCloud();
+  const rows = [remoteRow('Jeff', 'Northern Cardinal')];
+  cloud(app, rows, async (url, options) => {
+    assert.match(url, /replace_member_observations_guarded$/);
+    const body = JSON.parse(options.body);
+    assert.equal(body.p_member_name, 'Jeff');
+    assert.equal(body.p_expected_import_id, rows[0].import_id);
+    rows.splice(0, rows.length, ...body.p_observations.map(row => ({ ...row, import_id: '00000000-0000-0000-0000-000000000002' })));
+    return response(body.p_observations.length);
+  });
+  assert.equal(await selectFile(), true);
+  assert.equal(input.value, ''); assert.equal(input.disabled, false);
+  assert.equal(app.calls.filter(call => call.url.includes('/rpc/')).length, 1);
+  assert.deepEqual(JSON.parse(app.saved.get(pendingKey)), {});
+  assert.match(input.querySelector('.upload-card__hint').textContent, /2 rows shared/);
+  assert.equal(app.read('getUniqueLifeListSpecies("Jeff").some(row => row.species === "Hawaii Amakihi")'), true);
+});
+
+test('an invalid CSV clears its selection so a corrected CSV with the same filename can be imported', async () => {
+  const app = await createApp();
+  app.set('observations', [observation('Jeff', 'Existing Bird')]);
+  const input = app.inputs.find(item => item.dataset.member === 'Jeff');
+  const name = 'life-list.csv';
+  const selectedValue = `C:\\fakepath\\${name}`;
+  const selectFile = async csv => {
+    if (input.value === selectedValue) return false;
+    input.value = selectedValue;
+    await app.importCsv('Jeff', csv, name);
+    return true;
+  };
+  assert.equal(await selectFile('Wrong,Date\nHawaii Amakihi,2026-10-31'), true);
+  assert.equal(input.value, ''); assert.equal(input.disabled, false);
+  assert.match(app.element('#syncStatus').textContent, /Import failed: No bird rows were found/);
+  assert.equal(app.read('observations[0].species'), 'Existing Bird');
+  assert.equal(app.saved.has(pendingKey), false);
+
+  assert.equal(await selectFile('Species,Date\nHawaii Amakihi,2026-10-31'), true);
+  assert.equal(input.value, ''); assert.equal(input.disabled, false);
+  assert.equal(app.read('observations[0].species'), 'Hawaii Amakihi');
+  assert.equal(JSON.parse(app.saved.get(pendingKey)).Jeff.sourceName, name);
+  assert.match(input.querySelector('.upload-card__hint').textContent, /1 rows saved here/);
+  assert.equal(app.calls.length, 0);
+});
+
 test('cloud import loads latest lists then uses one guarded RPC with revision, X and source metadata', async () => {
   const app = await createApp(); app.configureCloud();
   app.set('observations', [observation('Matt', 'Robin', { count: 'X' })]);

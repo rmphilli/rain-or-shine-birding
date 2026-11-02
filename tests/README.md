@@ -4,10 +4,10 @@ Run `npm test` or `npm run check` from the repo with Node 22. The check command 
 
 ## Scope
 
-The restoration and performance suite currently has 97 passing cases:
+The restoration and performance suite currently has 99 passing cases:
 
 - 12 CSV/count/badge cases: CSV quoting/BOM/newlines/aliases, real upload event, invalid-input preservation, all three sample files, taxonomy rules, distinct union/overlap/score, ledger unknown counts, Matt's exact 233-to-232 exception, deterministic/idempotent milestones, and stale badge records.
-- 35 storage/sync/session cases: corrupt cache, local clearing, offline and cloud saves, guarded RPC contract, durable failed uploads, refresh/reload/race protection, confirmed retries and smaller-file replacement, legacy recovery cache, stable pagination, empty-cloud handling, separate badge save, magic-link redirect, token refresh/rotation, cross-tab storage and timeouts.
+- 37 storage/sync/session cases: corrupt cache, local clearing, offline and cloud saves, guarded RPC contract, durable failed uploads, refresh/reload/race protection, confirmed retries and smaller-file replacement, legacy recovery cache, stable pagination, empty-cloud handling, separate badge save, magic-link redirect, token refresh/rotation, cross-tab storage, timeouts, and same-file retry after local-only or invalid uploads.
 - 2 public-build cases: every staged source byte is preserved, internal files are absent, and cleanup refuses arbitrary output paths.
 - 2 stored-XSS cases through actual remote row conversion, synchronization and member-card rendering.
 - 4 assistant browser cases: signed-in bearer contract, text/photo compatibility, one identity retry and quota fallback without replay.

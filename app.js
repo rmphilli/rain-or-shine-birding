@@ -322,6 +322,7 @@ fileInputs.forEach((input) => {
       hint.textContent = "Try another CSV";
       syncStatus.textContent = `Import failed: ${error.message}`;
     } finally {
+      input.value = "";
       input.disabled = false;
     }
   });
